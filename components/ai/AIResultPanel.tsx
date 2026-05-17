@@ -1,7 +1,10 @@
 'use client';
 
 import type { AIJob } from '@/store/ai-jobs';
-import { normalizeRichTextForEditor } from '@/lib/rich-text';
+import { normalizeRichTextValue } from '@/lib/rich-text';
+import type { SectionType } from '@/lib/types';
+
+import { RichTextRenderer } from '@/components/resume/RichTextRenderer';
 
 interface Props {
   job: AIJob;
@@ -21,7 +24,13 @@ function tryParseJson(value: string): unknown | null {
   }
 }
 
-function ResultPreview({ text, sectionType }: { text: string; sectionType: string }) {
+function ResultPreview({
+  text,
+  sectionType,
+}: {
+  text: string;
+  sectionType: SectionType;
+}) {
   const parsed = tryParseJson(text);
   if (parsed !== null) {
     return (
@@ -32,9 +41,9 @@ function ResultPreview({ text, sectionType }: { text: string; sectionType: strin
   }
   if (sectionType === 'summary' || sectionType === 'text') {
     return (
-      <div
-        className="rich-text-field rounded-lg border border-gray-200 bg-gray-50 p-3 text-sm leading-relaxed text-gray-800"
-        dangerouslySetInnerHTML={{ __html: normalizeRichTextForEditor(text) }}
+      <RichTextRenderer
+        value={normalizeRichTextValue(text)}
+        className="rounded-lg border border-gray-200 bg-gray-50 p-3 text-sm leading-relaxed text-gray-800"
       />
     );
   }

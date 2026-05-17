@@ -1,29 +1,16 @@
 import { NextRequest } from 'next/server';
-import { cookies } from 'next/headers';
 import {
   updateSectionLayout,
   updateSectionContent,
   updateSectionOrder,
   deleteSection,
-} from '@/lib/notion-db';
+} from '@/lib/supabase-db';
 import type { SectionContent } from '@/lib/types';
-
-async function getToken(): Promise<string | null> {
-  const store = await cookies();
-  return store.get('notion_token')?.value ?? null;
-}
 
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string; sectionId: string }> }
 ) {
-  const token = await getToken();
-  if (!token)
-    return Response.json(
-      { error: 'Notion 연결이 필요합니다.' },
-      { status: 401 }
-    );
-
   try {
     const { id, sectionId } = await params;
     const body = (await request.json()) as {
@@ -33,11 +20,11 @@ export async function PATCH(
     };
 
     if (body.layout !== undefined)
-      await updateSectionLayout(token, id, sectionId, body.layout);
+      await updateSectionLayout(id, sectionId, body.layout);
     if (body.content !== undefined)
-      await updateSectionContent(token, id, sectionId, body.content);
+      await updateSectionContent(id, sectionId, body.content);
     if (body.order_index !== undefined)
-      await updateSectionOrder(token, id, sectionId, body.order_index);
+      await updateSectionOrder(id, sectionId, body.order_index);
 
     return Response.json({ success: true });
   } catch (err) {
@@ -53,16 +40,9 @@ export async function DELETE(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string; sectionId: string }> }
 ) {
-  const token = await getToken();
-  if (!token)
-    return Response.json(
-      { error: 'Notion 연결이 필요합니다.' },
-      { status: 401 }
-    );
-
   try {
     const { id, sectionId } = await params;
-    await deleteSection(token, id, sectionId);
+    await deleteSection(id, sectionId);
     return Response.json({ success: true });
   } catch {
     return Response.json(

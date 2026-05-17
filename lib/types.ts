@@ -25,6 +25,37 @@ export interface ResumeSection {
   updated_at: string;
 }
 
+// ── Rich text ───────────────────────────────────────────
+export type RichTextMarkType = 'bold' | 'italic' | 'strike' | 'underline';
+
+export interface RichTextMark {
+  type: RichTextMarkType;
+}
+
+export interface RichTextNode {
+  type: string;
+  text?: string;
+  marks?: RichTextMark[];
+  content?: RichTextNode[];
+}
+
+export interface RichTextDocument {
+  type: 'doc';
+  content: RichTextNode[];
+}
+
+export function makeRichTextDocument(text = ''): RichTextDocument {
+  return {
+    type: 'doc',
+    content: [
+      {
+        type: 'paragraph',
+        content: text ? [{ type: 'text', text }] : undefined,
+      },
+    ],
+  };
+}
+
 // ── Header ──────────────────────────────────────────────
 export interface HeaderContent {
   name: string;
@@ -39,12 +70,12 @@ export interface HeaderContent {
 
 // ── Summary ─────────────────────────────────────────────
 export interface SummaryContent {
-  text: string;
+  text: RichTextDocument;
 }
 
 // ── Plain text ──────────────────────────────────────────
 export interface TextContent {
-  text: string;
+  text: RichTextDocument;
 }
 
 // ── Experience ──────────────────────────────────────────
@@ -54,9 +85,9 @@ export interface ExperienceProject {
   startDate?: string;
   endDate?: string;
   tech?: string;
-  problem?: string;
-  ownership?: string;
-  achievement?: string;
+  problem?: RichTextDocument;
+  ownership?: RichTextDocument;
+  achievement?: RichTextDocument;
 }
 
 export interface ExperienceItem {
@@ -69,10 +100,10 @@ export interface ExperienceItem {
   projects?: ExperienceProject[];
   // legacy fields (backward compat — used when projects is absent)
   tech?: string;
-  problem?: string;
-  ownership?: string;
-  achievement?: string;
-  description?: string;
+  problem?: RichTextDocument;
+  ownership?: RichTextDocument;
+  achievement?: RichTextDocument;
+  description?: RichTextDocument;
 }
 
 export interface ExperienceContent {
@@ -138,7 +169,7 @@ export interface SkillsContent {
 export interface ProjectItem {
   id: string;
   name: string;
-  description: string;
+  description: RichTextDocument;
   tech: string;
   link?: string;
 }
@@ -217,9 +248,11 @@ export function makeDefaultContent(type: SectionType): SectionContent {
         website: '',
       } satisfies HeaderContent;
     case 'summary':
-      return { text: '자기소개를 작성해주세요.' } satisfies SummaryContent;
+      return {
+        text: makeRichTextDocument('자기소개를 작성해주세요.'),
+      } satisfies SummaryContent;
     case 'text':
-      return { text: '내용을 작성해주세요.' } satisfies TextContent;
+      return { text: makeRichTextDocument('내용을 작성해주세요.') } satisfies TextContent;
     case 'experience':
       return {
         items: [
@@ -237,9 +270,9 @@ export function makeDefaultContent(type: SectionType): SectionContent {
                 startDate: '',
                 endDate: '',
                 tech: '',
-                problem: '',
-                ownership: '',
-                achievement: '',
+                problem: makeRichTextDocument(),
+                ownership: makeRichTextDocument(),
+                achievement: makeRichTextDocument(),
               },
             ],
           },
@@ -278,7 +311,7 @@ export function makeDefaultContent(type: SectionType): SectionContent {
           {
             id: crypto.randomUUID(),
             name: '프로젝트명',
-            description: '프로젝트 설명을 작성하세요.',
+            description: makeRichTextDocument('프로젝트 설명을 작성하세요.'),
             tech: 'React, TypeScript',
             link: '',
           },

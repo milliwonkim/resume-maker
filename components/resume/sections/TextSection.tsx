@@ -1,6 +1,7 @@
 'use client';
 
 import type { TextContent } from '@/lib/types';
+import type { RichTextDocument } from '@/lib/types';
 
 import { RichTextField } from '../RichTextField';
 
@@ -11,7 +12,7 @@ interface Props {
 }
 
 export function TextSection({ content, layout, onChange }: Props) {
-  const handleChange = (text: string) => onChange({ ...content, text });
+  const handleChange = (text: RichTextDocument) => onChange({ ...content, text });
 
   if (layout === 'layout2') {
     return (

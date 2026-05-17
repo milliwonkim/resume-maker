@@ -1,6 +1,7 @@
 'use client';
 
 import type { ProjectsContent, ProjectItem } from '@/lib/types';
+import { makeRichTextDocument } from '@/lib/types';
 
 import { EditableField } from '../EditableField';
 import { RichTextField } from '../RichTextField';
@@ -23,7 +24,7 @@ export function ProjectsSection({ content, layout, onChange }: Props) {
   const newItem = (): ProjectItem => ({
     id: crypto.randomUUID(),
     name: '프로젝트명',
-    description: '프로젝트 설명을 작성하세요.',
+    description: makeRichTextDocument('프로젝트 설명을 작성하세요.'),
     tech: 'React, TypeScript',
     link: '',
   });
