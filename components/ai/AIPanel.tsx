@@ -3,9 +3,10 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import type { SectionType, SectionContent, ExperienceContent } from '@/lib/types';
 import { SECTION_LABELS } from '@/lib/types';
-import { normalizeRichTextForEditor } from '@/lib/rich-text';
+import { normalizeRichTextValue } from '@/lib/rich-text';
 import { useAIStore } from '@/store/ai';
 import { useAIJobsStore } from '@/store/ai-jobs';
+import { RichTextRenderer } from '@/components/resume/RichTextRenderer';
 import { NotionImport } from './NotionImport';
 
 const GEMINI_QUOTA_ERROR_CODE = 'GEMINI_QUOTA_EXCEEDED';
@@ -780,9 +781,9 @@ function RichTextPreview({ value }: { value: string }) {
   }
 
   return (
-    <div
-      className="rich-text-field"
-      dangerouslySetInnerHTML={{ __html: normalizeRichTextForEditor(value) }}
+    <RichTextRenderer
+      value={normalizeRichTextValue(value)}
+      className="rounded-md border border-gray-200 bg-white p-3 text-sm leading-relaxed text-gray-700"
     />
   );
 }

@@ -1,4 +1,4 @@
-import { normalizeRichTextForEditor } from '@/lib/rich-text';
+import { normalizeRichTextValue } from '@/lib/rich-text';
 import type {
   SectionType,
   SectionContent,
@@ -201,7 +201,7 @@ export function applyAIResult(
   text: string,
 ): SectionContent | null {
   if (sectionType === 'summary' || sectionType === 'text') {
-    return { text: normalizeRichTextForEditor(text) } as SummaryContent;
+    return { text: normalizeRichTextValue(text) } as SummaryContent;
   }
 
   try {
@@ -226,18 +226,18 @@ export function applyAIResult(
                   startDate: toText(p.startDate),
                   endDate: toText(p.endDate),
                   tech: toText(p.tech),
-                  problem: normalizeRichTextForEditor(toRichTextValue(p.problem)),
-                  ownership: normalizeRichTextForEditor(toRichTextValue(p.ownership)),
-                  achievement: normalizeRichTextForEditor(toRichTextValue(p.achievement)),
+                  problem: normalizeRichTextValue(toRichTextValue(p.problem)),
+                  ownership: normalizeRichTextValue(toRichTextValue(p.ownership)),
+                  achievement: normalizeRichTextValue(toRichTextValue(p.achievement)),
                 }))
               : [
                   {
                     id: crypto.randomUUID(),
                     name: '프로젝트명',
                     tech: toText(item.tech),
-                    problem: normalizeRichTextForEditor(toRichTextValue(item.problem)),
-                    ownership: normalizeRichTextForEditor(toRichTextValue(item.ownership)),
-                    achievement: normalizeRichTextForEditor(toRichTextValue(item.achievement)),
+                    problem: normalizeRichTextValue(toRichTextValue(item.problem)),
+                    ownership: normalizeRichTextValue(toRichTextValue(item.ownership)),
+                    achievement: normalizeRichTextValue(toRichTextValue(item.achievement)),
                   },
                 ],
           };
@@ -266,7 +266,7 @@ export function applyAIResult(
           name: toText(item.name),
           tech: toText(item.tech),
           link: toText(item.link),
-          description: normalizeRichTextForEditor(toText(item.description)),
+          description: normalizeRichTextValue(toText(item.description)),
         })),
       } as ProjectsContent;
     }

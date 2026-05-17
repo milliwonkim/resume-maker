@@ -1,9 +1,11 @@
 -- ============================================================
 -- Resume Builder Schema (Supabase)
--- Supabase 기본 bigint ID를 사용합니다
+-- Supabase 기본 bigint ID를 사용하고, Notion 본문/섹션 content를 그대로 보존합니다.
 -- ============================================================
 
 -- resumes 테이블 재생성
+create extension if not exists pgcrypto;
+
 drop table if exists resume_sections cascade;
 drop table if exists resumes cascade;
 
@@ -14,7 +16,6 @@ create table resumes (
   updated_at timestamptz not null default now()
 );
 
--- resume_sections 테이블 (id를 개별 PK로)
 create table resume_sections (
   id          bigint generated always as identity primary key,
   resume_id   bigint      not null references resumes(id) on delete cascade,
@@ -30,7 +31,9 @@ create table resume_sections (
 create or replace function update_updated_at()
 returns trigger as $$
 begin
-  new.updated_at = now();
+  if new.updated_at is not distinct from old.updated_at then
+    new.updated_at = now();
+  end if;
   return new;
 end;
 $$ language plpgsql;
@@ -46,3 +49,7 @@ create trigger resume_sections_updated_at
 -- 인덱스
 create index on resume_sections(resume_id);
 create index on resume_sections(resume_id, order_index);
+
+grant usage on schema public to anon, authenticated;
+grant all on table resumes to anon, authenticated;
+grant all on table resume_sections to anon, authenticated;

@@ -4,7 +4,6 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Dialog } from '@base-ui/react';
 import { useResumeStore } from '@/store/resume';
-import { NotionSetup } from '@/components/notion/NotionSetup';
 import type { Resume } from '@/lib/types';
 
 function formatDate(iso: string) {
@@ -18,7 +17,6 @@ function formatDate(iso: string) {
 export function ResumeDashboard() {
   const router = useRouter();
   const { resumes, setResumes, addResume, removeResume } = useResumeStore();
-  const [ready, setReady] = useState(false);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [newTitle, setNewTitle] = useState('');
@@ -26,7 +24,6 @@ export function ResumeDashboard() {
   const [deleteTarget, setDeleteTarget] = useState<Resume | null>(null);
 
   useEffect(() => {
-    if (!ready) return;
     fetch('/api/resumes')
       .then((r) => r.json())
       .then((data) => {
@@ -34,11 +31,7 @@ export function ResumeDashboard() {
         setLoading(false);
       })
       .catch(() => setLoading(false));
-  }, [ready, setResumes]);
-
-  if (!ready) {
-    return <NotionSetup onReady={() => setReady(true)} />;
-  }
+  }, [setResumes]);
 
   const handleCreate = async () => {
     const title = newTitle.trim() || '새 이력서';
@@ -143,7 +136,7 @@ export function ResumeDashboard() {
             </button>
           </div>
         ) : (
-          <div className="grid gap-4 grid-cols-1">
+          <div className="grid grid-cols-1 gap-4">
             {resumes.map((resume) => (
               <div
                 key={resume.id}

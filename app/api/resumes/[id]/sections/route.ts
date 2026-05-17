@@ -1,24 +1,11 @@
 import { NextRequest } from 'next/server';
-import { cookies } from 'next/headers';
-import { createSection } from '@/lib/notion-db';
+import { createSection } from '@/lib/supabase-db';
 import type { SectionType, SectionContent } from '@/lib/types';
-
-async function getToken(): Promise<string | null> {
-  const store = await cookies();
-  return store.get('notion_token')?.value ?? null;
-}
 
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const token = await getToken();
-  if (!token)
-    return Response.json(
-      { error: 'Notion 연결이 필요합니다.' },
-      { status: 401 }
-    );
-
   try {
     const { id } = await params;
     const body = (await request.json()) as {
@@ -28,7 +15,6 @@ export async function POST(
       layout?: string;
     };
     const section = await createSection(
-      token,
       id,
       body.type,
       body.content,

@@ -12,11 +12,12 @@ import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
 
-import { normalizeRichTextForEditor } from '@/lib/rich-text';
+import { normalizeRichTextValue } from '@/lib/rich-text';
+import type { RichTextDocument } from '@/lib/types';
 
 interface RichTextFieldProps {
-  value: string;
-  onChange: (html: string) => void;
+  value: RichTextDocument;
+  onChange: (document: RichTextDocument) => void;
   className?: string;
   placeholder?: string;
 }
@@ -47,11 +48,11 @@ export function RichTextField({
 
   const editor = useEditor({
     extensions: [StarterKit, Placeholder.configure({ placeholder })],
-    content: normalizeRichTextForEditor(value),
+    content: normalizeRichTextValue(value),
     immediatelyRender: false,
     onFocus: () => setIsFocused(true),
     onBlur: () => setIsFocused(false),
-    onUpdate: ({ editor: e }) => onChange(e.getHTML()),
+    onUpdate: ({ editor: e }) => onChange(normalizeRichTextValue(e.getJSON())),
     editorProps: {
       attributes: {
         class: 'rich-text-field outline-none min-h-[1em] cursor-text',
@@ -91,8 +92,8 @@ export function RichTextField({
 
   useEffect(() => {
     if (!editor || editor.isFocused) return;
-    const next = normalizeRichTextForEditor(value);
-    if (editor.getHTML() !== next) {
+    const next = normalizeRichTextValue(value);
+    if (JSON.stringify(editor.getJSON()) !== JSON.stringify(next)) {
       editor.commands.setContent(next, { emitUpdate: false });
     }
   }, [editor, value]);

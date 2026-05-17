@@ -5,6 +5,8 @@ import type {
   ExperienceItem,
   ExperienceProject,
 } from '@/lib/types';
+import { makeRichTextDocument } from '@/lib/types';
+import { isEmptyRichText } from '@/lib/rich-text';
 
 import { EditableField } from '../EditableField';
 import { RichTextField } from '../RichTextField';
@@ -92,9 +94,9 @@ function newProject(): ExperienceProject {
     startDate: '',
     endDate: '',
     tech: '',
-    problem: '',
-    ownership: '',
-    achievement: '',
+    problem: makeRichTextDocument(),
+    ownership: makeRichTextDocument(),
+    achievement: makeRichTextDocument(),
   };
 }
 
@@ -173,7 +175,7 @@ function ProjectCard({
                 {field.label}
               </span>
               <RichTextField
-                value={project[field.key] ?? ''}
+                value={project[field.key] ?? makeRichTextDocument()}
                 onChange={(v) => onUpdate({ [field.key]: v })}
                 className={`block w-full leading-relaxed text-gray-700 ${textSize}`}
                 placeholder={field.placeholder}
@@ -197,16 +199,16 @@ function LegacyFields({
   textSize?: string;
 }) {
   const hasStructured =
-    (item.problem ?? '') !== '' ||
-    (item.ownership ?? '') !== '' ||
-    (item.achievement ?? '') !== '';
-  const hasLegacy = (item.description ?? '') !== '' && !hasStructured;
+    !isEmptyRichText(item.problem) ||
+    !isEmptyRichText(item.ownership) ||
+    !isEmptyRichText(item.achievement);
+  const hasLegacy = !isEmptyRichText(item.description) && !hasStructured;
 
   if (hasLegacy) {
     return (
       <div className="mt-2 border-l-2 border-gray-100 pl-4">
         <RichTextField
-          value={item.description ?? ''}
+          value={item.description ?? makeRichTextDocument()}
           onChange={(v) => update({ description: v })}
           className={`block w-full leading-relaxed text-gray-700 ${textSize}`}
           placeholder="업무 내용을 작성해주세요"
@@ -243,7 +245,7 @@ function LegacyFields({
               {field.label}
             </span>
             <RichTextField
-              value={item[field.key] ?? ''}
+              value={item[field.key] ?? makeRichTextDocument()}
               onChange={(v) => update({ [field.key]: v })}
               className={`block w-full leading-relaxed text-gray-700 ${textSize}`}
               placeholder={field.placeholder}
