@@ -98,19 +98,6 @@ async function fetchAllBlocks(
   return blocks;
 }
 
-async function fetchPageTitle(pageId: string, token: string): Promise<string> {
-  const res = await fetch(`https://api.notion.com/v1/pages/${pageId}`, {
-    headers: notionHeaders(token),
-  });
-  if (!res.ok) return '';
-
-  const page = (await res.json()) as NotionPageResponse;
-  const titleProp = Object.values(page.properties).find(
-    (p) => p.type === 'title'
-  );
-  return titleProp?.title?.map((t) => t.plain_text).join('') ?? '';
-}
-
 function extractRichText(richText: RichText[]): string {
   return richText.map((t) => t.plain_text).join('');
 }

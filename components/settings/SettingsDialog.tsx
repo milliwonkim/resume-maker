@@ -56,6 +56,9 @@ export function SettingsDialog({ onClose }: Props) {
   const [syncLoading, setSyncLoading] = useState(false);
   const [syncMessage, setSyncMessage] = useState('');
   const [syncError, setSyncError] = useState('');
+  const [importLoading, setImportLoading] = useState(false);
+  const [importMessage, setImportMessage] = useState('');
+  const [importError, setImportError] = useState('');
 
   useEffect(() => {
     Promise.all([
@@ -206,7 +209,7 @@ export function SettingsDialog({ onClose }: Props) {
       setSyncMessage(
         `이력서 ${data.resumeCount ?? 0}개, 섹션 ${
           data.sectionCount ?? 0
-        }개를 동기화했습니다. 새로 생성 ${
+        }개를 Notion으로 내보냈습니다. 새로 생성 ${
           data.createdCount ?? 0
         }개, 갱신 ${data.updatedCount ?? 0}개.`
       );
@@ -214,6 +217,39 @@ export function SettingsDialog({ onClose }: Props) {
       setSyncError('네트워크 오류');
     } finally {
       setSyncLoading(false);
+    }
+  }, [databaseId]);
+
+  const handleImportFromNotion = useCallback(async () => {
+    if (!databaseId) return;
+
+    setImportLoading(true);
+    setImportMessage('');
+    setImportError('');
+    try {
+      const res = await fetch('/api/migrations/notion-to-supabase', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ databaseId }),
+      });
+      const data = (await res.json()) as {
+        resumeCount?: number;
+        sectionCount?: number;
+        error?: string;
+      };
+      if (!res.ok) {
+        setImportError(data.error ?? '가져오기 실패');
+        return;
+      }
+      setImportMessage(
+        `Notion 이력서 ${data.resumeCount ?? 0}개, 섹션 ${
+          data.sectionCount ?? 0
+        }개를 가져왔습니다. 목록을 새로고침하면 반영됩니다.`
+      );
+    } catch {
+      setImportError('네트워크 오류');
+    } finally {
+      setImportLoading(false);
     }
   }, [databaseId]);
 
@@ -590,8 +626,8 @@ export function SettingsDialog({ onClose }: Props) {
                     Supabase → Notion
                   </label>
                   <p className="mb-2 text-xs text-gray-400">
-                    현재 Supabase 이력서를 Notion 데이터베이스 속성으로
-                    가져옵니다. 같은 Supabase ID는 새로 만들지 않고 갱신합니다.
+                    현재 앱의 이력서를 Notion 데이터베이스 속성으로 내보냅니다.
+                    같은 Supabase ID는 새로 만들지 않고 갱신합니다.
                   </p>
                   <button
                     type="button"
@@ -605,7 +641,7 @@ export function SettingsDialog({ onClose }: Props) {
                         동기화 중...
                       </>
                     ) : (
-                      '현재 이력서 Notion으로 가져오기'
+                      '현재 이력서 Notion으로 내보내기'
                     )}
                   </button>
                   {syncMessage && (
@@ -613,6 +649,42 @@ export function SettingsDialog({ onClose }: Props) {
                   )}
                   {syncError && (
                     <p className="mt-2 text-xs text-red-500">{syncError}</p>
+                  )}
+                </div>
+              )}
+
+              {notionConnected && databaseId && (
+                <div>
+                  <label className="mb-1.5 block text-sm font-medium text-gray-700">
+                    Notion → Supabase
+                  </label>
+                  <p className="mb-2 text-xs text-gray-400">
+                    Notion 데이터베이스에 있는 이력서를 앱으로 가져옵니다.
+                    숨겨진 섹션 데이터가 없으면 보이는 속성 값으로 섹션을
+                    복원합니다.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={handleImportFromNotion}
+                    disabled={importLoading}
+                    className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-violet-600 py-2 text-sm text-white transition-colors hover:bg-violet-700 disabled:bg-violet-300"
+                  >
+                    {importLoading ? (
+                      <>
+                        <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                        가져오는 중...
+                      </>
+                    ) : (
+                      'Notion 데이터 앱으로 가져오기'
+                    )}
+                  </button>
+                  {importMessage && (
+                    <p className="mt-2 text-xs text-green-600">
+                      {importMessage}
+                    </p>
+                  )}
+                  {importError && (
+                    <p className="mt-2 text-xs text-red-500">{importError}</p>
                   )}
                 </div>
               )}
