@@ -11,6 +11,7 @@ import type {
   SummaryContent,
   TextContent,
 } from './types';
+import { makeRichTextDocument } from './types';
 import { richTextToPlainText } from './rich-text';
 
 const NOTION_VERSION = '2022-06-28';
@@ -64,6 +65,13 @@ interface NotionRichText {
   plain_text: string;
 }
 
+interface NotionProperty {
+  type: string;
+  title?: NotionRichText[];
+  rich_text?: NotionRichText[];
+  date?: { start: string; end?: string } | null;
+}
+
 type NotionDatabasePropertyConfig =
   | { title: Record<string, never> }
   | { rich_text: Record<string, never> }
@@ -100,24 +108,11 @@ interface NotionPage {
   created_time: string;
   last_edited_time: string;
   archived: boolean;
-  properties: Record<
-    string,
-    {
-      type: string;
-      title?: NotionRichText[];
-    }
-  >;
+  properties: Record<string, NotionProperty>;
 }
 
 interface NotionDatabasePage extends NotionPage {
-  properties: NotionPage['properties'] &
-    Record<
-      string,
-      {
-        type: string;
-        rich_text?: NotionRichText[];
-      }
-    >;
+  properties: NotionPage['properties'];
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -175,6 +170,235 @@ async function readSections(
 
 function sortSectionsByOrder(sections: ResumeSection[]): ResumeSection[] {
   return [...sections].sort((a, b) => a.order_index - b.order_index);
+}
+
+function propertyText(
+  properties: Record<string, NotionProperty>,
+  propertyName: string
+): string {
+  const property = properties[propertyName];
+  if (!property) return '';
+
+  if (property.type === 'title') {
+    return (
+      property.title
+        ?.map((text) => text.plain_text)
+        .join('')
+        .trim() ?? ''
+    );
+  }
+
+  if (property.type === 'rich_text') {
+    return (
+      property.rich_text
+        ?.map((text) => text.plain_text)
+        .join('')
+        .trim() ?? ''
+    );
+  }
+
+  if (property.type === 'date') {
+    if (!property.date) return '';
+    return property.date.end
+      ? `${property.date.start} ~ ${property.date.end}`
+      : property.date.start;
+  }
+
+  return '';
+}
+
+const IMPORTED_HEADER_PROPERTIES = [
+  '이름',
+  '직무',
+  '이메일',
+  '전화',
+  '지역',
+  'LinkedIn',
+  'GitHub',
+  '웹사이트',
+] as const;
+
+type ImportedSectionBuilder = (
+  page: NotionPage,
+  orderIndex: number
+) => ResumeSection | null;
+
+function hasImportedHeader(
+  properties: Record<string, NotionProperty>
+): boolean {
+  return IMPORTED_HEADER_PROPERTIES.some((propertyName) =>
+    propertyText(properties, propertyName)
+  );
+}
+
+function importedSectionBase(
+  page: NotionPage,
+  type: SectionType,
+  orderIndex: number
+): Omit<ResumeSection, 'content' | 'layout'> {
+  return {
+    id: crypto.randomUUID(),
+    resume_id: page.id,
+    type,
+    order_index: orderIndex,
+    created_at: page.created_time,
+    updated_at: page.last_edited_time,
+  };
+}
+
+function buildHeaderSection(
+  page: NotionPage,
+  orderIndex: number
+): ResumeSection | null {
+  if (!hasImportedHeader(page.properties)) return null;
+
+  return {
+    ...importedSectionBase(page, 'header', orderIndex),
+    layout: 'layout1',
+    content: {
+      name: propertyText(page.properties, '이름'),
+      title: propertyText(page.properties, '직무'),
+      email: propertyText(page.properties, '이메일'),
+      phone: propertyText(page.properties, '전화'),
+      location: propertyText(page.properties, '지역'),
+      linkedin: propertyText(page.properties, 'LinkedIn'),
+      github: propertyText(page.properties, 'GitHub'),
+      website: propertyText(page.properties, '웹사이트'),
+    },
+  };
+}
+
+function buildRichTextSection(
+  page: NotionPage,
+  orderIndex: number,
+  type: 'summary' | 'text',
+  propertyName: string
+): ResumeSection | null {
+  const text = propertyText(page.properties, propertyName);
+  if (!text) return null;
+
+  return {
+    ...importedSectionBase(page, type, orderIndex),
+    layout: 'layout1',
+    content: { text: makeRichTextDocument(text) },
+  };
+}
+
+function buildExperienceSection(
+  page: NotionPage,
+  orderIndex: number
+): ResumeSection | null {
+  const experience = propertyText(page.properties, '경력');
+  if (!experience) return null;
+
+  return {
+    ...importedSectionBase(page, 'experience', orderIndex),
+    layout: 'layout1',
+    content: {
+      items: [
+        {
+          id: crypto.randomUUID(),
+          company: '',
+          role: '',
+          location: '',
+          startDate: '',
+          endDate: '',
+          description: makeRichTextDocument(experience),
+        },
+      ],
+    },
+  };
+}
+
+function buildEducationSection(
+  page: NotionPage,
+  orderIndex: number
+): ResumeSection | null {
+  const education = propertyText(page.properties, '학력');
+  if (!education) return null;
+
+  return {
+    ...importedSectionBase(page, 'education', orderIndex),
+    layout: 'layout1',
+    content: {
+      items: [
+        {
+          id: crypto.randomUUID(),
+          schoolType: 'university',
+          school: education,
+          degree: '',
+          field: '',
+          additionalMajors: [],
+          startDate: '',
+          endDate: '',
+          gpa: '',
+          gpaScale: '4.5',
+        },
+      ],
+    },
+  };
+}
+
+function buildSkillsSection(
+  page: NotionPage,
+  orderIndex: number
+): ResumeSection | null {
+  const skills = propertyText(page.properties, '기술');
+  if (!skills) return null;
+
+  return {
+    ...importedSectionBase(page, 'skills', orderIndex),
+    layout: 'layout1',
+    content: {
+      categories: [{ id: crypto.randomUUID(), name: 'Skills', skills }],
+    },
+  };
+}
+
+function buildProjectsSection(
+  page: NotionPage,
+  orderIndex: number
+): ResumeSection | null {
+  const projects = propertyText(page.properties, '프로젝트');
+  if (!projects) return null;
+
+  return {
+    ...importedSectionBase(page, 'projects', orderIndex),
+    layout: 'layout1',
+    content: {
+      items: [
+        {
+          id: crypto.randomUUID(),
+          name: 'Notion 프로젝트',
+          description: makeRichTextDocument(projects),
+          tech: '',
+          link: '',
+        },
+      ],
+    },
+  };
+}
+
+function buildSectionsFromProperties(page: NotionPage): ResumeSection[] {
+  const builders: ImportedSectionBuilder[] = [
+    buildHeaderSection,
+    (notionPage, orderIndex) =>
+      buildRichTextSection(notionPage, orderIndex, 'summary', '자기소개'),
+    (notionPage, orderIndex) =>
+      buildRichTextSection(notionPage, orderIndex, 'text', '일반 텍스트'),
+    buildExperienceSection,
+    buildEducationSection,
+    buildSkillsSection,
+    buildProjectsSection,
+  ];
+  const sections: ResumeSection[] = [];
+
+  for (const buildSection of builders) {
+    const section = buildSection(page, sections.length);
+    if (section) sections.push(section);
+  }
+
+  return sections;
 }
 
 function textProperty(value: string | undefined): NotionPagePropertyValue {
@@ -645,7 +869,20 @@ export async function getSections(
   token: string,
   resumeId: string
 ): Promise<ResumeSection[]> {
-  return sortSectionsByOrder(await readSections(token, resumeId));
+  const sections = sortSectionsByOrder(await readSections(token, resumeId));
+  if (sections.length > 0) return sections;
+
+  const res = await fetch(`https://api.notion.com/v1/pages/${resumeId}`, {
+    headers: notionHeaders(token),
+  });
+
+  if (!res.ok) {
+    const err = (await res.json()) as { message?: string };
+    throw new Error(err.message ?? 'Notion 페이지 속성 조회 실패');
+  }
+
+  const page = (await res.json()) as NotionPage;
+  return buildSectionsFromProperties(page);
 }
 
 export async function createSection(
