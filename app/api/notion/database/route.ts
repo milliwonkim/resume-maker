@@ -4,6 +4,25 @@ import { cookies } from 'next/headers';
 const NOTION_VERSION = '2022-06-28';
 const DB_COOKIE = 'notion_db_id';
 const DB_TITLE = '이력서 저장소';
+const RESUME_DB_PROPERTIES = {
+  title: { title: {} },
+  'Supabase ID': { rich_text: {} },
+  이름: { rich_text: {} },
+  직무: { rich_text: {} },
+  이메일: { rich_text: {} },
+  전화: { rich_text: {} },
+  지역: { rich_text: {} },
+  LinkedIn: { rich_text: {} },
+  GitHub: { rich_text: {} },
+  웹사이트: { rich_text: {} },
+  자기소개: { rich_text: {} },
+  '일반 텍스트': { rich_text: {} },
+  경력: { rich_text: {} },
+  학력: { rich_text: {} },
+  기술: { rich_text: {} },
+  프로젝트: { rich_text: {} },
+  '동기화 시각': { date: {} },
+};
 
 const COOKIE_OPTIONS = {
   httpOnly: true,
@@ -153,9 +172,7 @@ export async function POST(request: NextRequest) {
       body: JSON.stringify({
         parent: { type: 'page_id', page_id: parentPageId },
         title: [{ type: 'text', text: { content: DB_TITLE } }],
-        properties: {
-          title: { title: {} },
-        },
+        properties: RESUME_DB_PROPERTIES,
       }),
     });
 

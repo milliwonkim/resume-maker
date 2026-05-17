@@ -53,6 +53,9 @@ export function SettingsDialog({ onClose }: Props) {
   const [locationPageUrl, setLocationPageUrl] = useState('');
   const [locationLoading, setLocationLoading] = useState(false);
   const [locationError, setLocationError] = useState('');
+  const [syncLoading, setSyncLoading] = useState(false);
+  const [syncMessage, setSyncMessage] = useState('');
+  const [syncError, setSyncError] = useState('');
 
   useEffect(() => {
     Promise.all([
@@ -176,6 +179,43 @@ export function SettingsDialog({ onClose }: Props) {
       setLocationLoading(false);
     }
   }, [locationPageUrl, selectedLocationId]);
+
+  const handleSyncToNotion = useCallback(async () => {
+    if (!databaseId) return;
+
+    setSyncLoading(true);
+    setSyncMessage('');
+    setSyncError('');
+    try {
+      const res = await fetch('/api/migrations/supabase-to-notion', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ databaseId }),
+      });
+      const data = (await res.json()) as {
+        resumeCount?: number;
+        sectionCount?: number;
+        createdCount?: number;
+        updatedCount?: number;
+        error?: string;
+      };
+      if (!res.ok) {
+        setSyncError(data.error ?? '동기화 실패');
+        return;
+      }
+      setSyncMessage(
+        `이력서 ${data.resumeCount ?? 0}개, 섹션 ${
+          data.sectionCount ?? 0
+        }개를 동기화했습니다. 새로 생성 ${
+          data.createdCount ?? 0
+        }개, 갱신 ${data.updatedCount ?? 0}개.`
+      );
+    } catch {
+      setSyncError('네트워크 오류');
+    } finally {
+      setSyncLoading(false);
+    }
+  }, [databaseId]);
 
   return (
     <div className="no-print fixed inset-0 z-50 flex items-center justify-center bg-black/40">
@@ -540,6 +580,39 @@ export function SettingsDialog({ onClose }: Props) {
                         </button>
                       </div>
                     </div>
+                  )}
+                </div>
+              )}
+
+              {notionConnected && databaseId && (
+                <div>
+                  <label className="mb-1.5 block text-sm font-medium text-gray-700">
+                    Supabase → Notion
+                  </label>
+                  <p className="mb-2 text-xs text-gray-400">
+                    현재 Supabase 이력서를 Notion 데이터베이스 속성으로
+                    가져옵니다. 같은 Supabase ID는 새로 만들지 않고 갱신합니다.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={handleSyncToNotion}
+                    disabled={syncLoading}
+                    className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-gray-900 py-2 text-sm text-white transition-colors hover:bg-gray-700 disabled:bg-gray-300"
+                  >
+                    {syncLoading ? (
+                      <>
+                        <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                        동기화 중...
+                      </>
+                    ) : (
+                      '현재 이력서 Notion으로 가져오기'
+                    )}
+                  </button>
+                  {syncMessage && (
+                    <p className="mt-2 text-xs text-green-600">{syncMessage}</p>
+                  )}
+                  {syncError && (
+                    <p className="mt-2 text-xs text-red-500">{syncError}</p>
                   )}
                 </div>
               )}
