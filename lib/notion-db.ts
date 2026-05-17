@@ -1,4 +1,9 @@
-import type { Resume, ResumeSection, SectionType, SectionContent } from './types';
+import type {
+  Resume,
+  ResumeSection,
+  SectionType,
+  SectionContent,
+} from './types';
 
 const NOTION_VERSION = '2022-06-28';
 const SECTIONS_CAPTION = '__resume_sections__';
@@ -12,11 +17,15 @@ function notionHeaders(token: string): HeadersInit {
   };
 }
 
-
-function splitIntoRichText(text: string): Array<{ type: 'text'; text: { content: string } }> {
+function splitIntoRichText(
+  text: string
+): Array<{ type: 'text'; text: { content: string } }> {
   const chunks: Array<{ type: 'text'; text: { content: string } }> = [];
   for (let i = 0; i < text.length; i += MAX_RICH_TEXT_LENGTH) {
-    chunks.push({ type: 'text', text: { content: text.slice(i, i + MAX_RICH_TEXT_LENGTH) } });
+    chunks.push({
+      type: 'text',
+      text: { content: text.slice(i, i + MAX_RICH_TEXT_LENGTH) },
+    });
   }
   return chunks.length > 0 ? chunks : [{ type: 'text', text: { content: '' } }];
 }
@@ -47,17 +56,23 @@ interface NotionPage {
   created_time: string;
   last_edited_time: string;
   archived: boolean;
-  properties: Record<string, {
-    type: string;
-    title?: NotionRichText[];
-  }>;
+  properties: Record<
+    string,
+    {
+      type: string;
+      title?: NotionRichText[];
+    }
+  >;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function pageToResume(page: NotionPage): Resume {
-  const titleProp = Object.values(page.properties).find((p) => p.type === 'title');
-  const title = titleProp?.title?.map((t) => t.plain_text).join('') ?? '제목 없음';
+  const titleProp = Object.values(page.properties).find(
+    (p) => p.type === 'title'
+  );
+  const title =
+    titleProp?.title?.map((t) => t.plain_text).join('') ?? '제목 없음';
   return {
     id: page.id,
     title,
@@ -66,22 +81,33 @@ function pageToResume(page: NotionPage): Resume {
   };
 }
 
-async function findSectionsBlock(token: string, pageId: string): Promise<NotionCodeBlock | null> {
-  const res = await fetch(`https://api.notion.com/v1/blocks/${pageId}/children?page_size=100`, {
-    headers: notionHeaders(token),
-  });
+async function findSectionsBlock(
+  token: string,
+  pageId: string
+): Promise<NotionCodeBlock | null> {
+  const res = await fetch(
+    `https://api.notion.com/v1/blocks/${pageId}/children?page_size=100`,
+    {
+      headers: notionHeaders(token),
+    }
+  );
   if (!res.ok) return null;
-  const data = await res.json() as { results: NotionBlock[] };
+  const data = (await res.json()) as { results: NotionBlock[] };
   const block = data.results.find(
     (b): b is NotionCodeBlock =>
       b.type === 'code' &&
       'code' in b &&
-      ((b as NotionCodeBlock).code.caption ?? []).some((c) => c.plain_text === SECTIONS_CAPTION)
+      ((b as NotionCodeBlock).code.caption ?? []).some(
+        (c) => c.plain_text === SECTIONS_CAPTION
+      )
   );
   return block ?? null;
 }
 
-async function readSections(token: string, pageId: string): Promise<ResumeSection[]> {
+async function readSections(
+  token: string,
+  pageId: string
+): Promise<ResumeSection[]> {
   const block = await findSectionsBlock(token, pageId);
   if (!block) return [];
   const json = block.code.rich_text.map((t) => t.plain_text).join('');
@@ -96,7 +122,11 @@ function sortSectionsByOrder(sections: ResumeSection[]): ResumeSection[] {
   return [...sections].sort((a, b) => a.order_index - b.order_index);
 }
 
-async function writeSections(token: string, pageId: string, sections: ResumeSection[]): Promise<void> {
+async function writeSections(
+  token: string,
+  pageId: string,
+  sections: ResumeSection[]
+): Promise<void> {
   const block = await findSectionsBlock(token, pageId);
   const json = JSON.stringify(sections);
   const richText = splitIntoRichText(json);
@@ -114,27 +144,34 @@ async function writeSections(token: string, pageId: string, sections: ResumeSect
       }),
     });
     if (!res.ok) {
-      const err = await res.json() as { message?: string };
+      const err = (await res.json()) as { message?: string };
       throw new Error(err.message ?? '섹션 저장 실패');
     }
   } else {
-    const res = await fetch(`https://api.notion.com/v1/blocks/${pageId}/children`, {
-      method: 'PATCH',
-      headers: notionHeaders(token),
-      body: JSON.stringify({
-        children: [{
-          object: 'block',
-          type: 'code',
-          code: {
-            rich_text: richText,
-            language: 'json',
-            caption: [{ type: 'text', text: { content: SECTIONS_CAPTION } }],
-          },
-        }],
-      }),
-    });
+    const res = await fetch(
+      `https://api.notion.com/v1/blocks/${pageId}/children`,
+      {
+        method: 'PATCH',
+        headers: notionHeaders(token),
+        body: JSON.stringify({
+          children: [
+            {
+              object: 'block',
+              type: 'code',
+              code: {
+                rich_text: richText,
+                language: 'json',
+                caption: [
+                  { type: 'text', text: { content: SECTIONS_CAPTION } },
+                ],
+              },
+            },
+          ],
+        }),
+      }
+    );
     if (!res.ok) {
-      const err = await res.json() as { message?: string };
+      const err = (await res.json()) as { message?: string };
       throw new Error(err.message ?? '섹션 블록 생성 실패');
     }
   }
@@ -142,24 +179,34 @@ async function writeSections(token: string, pageId: string, sections: ResumeSect
 
 // ── Resumes ───────────────────────────────────────────────────────────────────
 
-export async function getResumes(token: string, databaseId: string): Promise<Resume[]> {
-  const res = await fetch(`https://api.notion.com/v1/databases/${databaseId}/query`, {
-    method: 'POST',
-    headers: notionHeaders(token),
-    body: JSON.stringify({
-      page_size: 100,
-      sorts: [{ timestamp: 'created_time', direction: 'descending' }],
-    }),
-  });
+export async function getResumes(
+  token: string,
+  databaseId: string
+): Promise<Resume[]> {
+  const res = await fetch(
+    `https://api.notion.com/v1/databases/${databaseId}/query`,
+    {
+      method: 'POST',
+      headers: notionHeaders(token),
+      body: JSON.stringify({
+        page_size: 100,
+        sorts: [{ timestamp: 'created_time', direction: 'descending' }],
+      }),
+    }
+  );
   if (!res.ok) {
-    const err = await res.json() as { message?: string };
+    const err = (await res.json()) as { message?: string };
     throw new Error(err.message ?? 'Notion 데이터베이스 조회 실패');
   }
-  const data = await res.json() as { results: NotionPage[] };
+  const data = (await res.json()) as { results: NotionPage[] };
   return data.results.filter((p) => !p.archived).map(pageToResume);
 }
 
-export async function createResume(token: string, databaseId: string, title = '새 이력서'): Promise<Resume> {
+export async function createResume(
+  token: string,
+  databaseId: string,
+  title = '새 이력서'
+): Promise<Resume> {
   const res = await fetch('https://api.notion.com/v1/pages', {
     method: 'POST',
     headers: notionHeaders(token),
@@ -168,26 +215,32 @@ export async function createResume(token: string, databaseId: string, title = '�
       properties: {
         title: { title: [{ type: 'text', text: { content: title } }] },
       },
-      children: [{
-        object: 'block',
-        type: 'code',
-        code: {
-          rich_text: [{ type: 'text', text: { content: '[]' } }],
-          language: 'json',
-          caption: [{ type: 'text', text: { content: SECTIONS_CAPTION } }],
+      children: [
+        {
+          object: 'block',
+          type: 'code',
+          code: {
+            rich_text: [{ type: 'text', text: { content: '[]' } }],
+            language: 'json',
+            caption: [{ type: 'text', text: { content: SECTIONS_CAPTION } }],
+          },
         },
-      }],
+      ],
     }),
   });
   if (!res.ok) {
-    const err = await res.json() as { message?: string };
+    const err = (await res.json()) as { message?: string };
     throw new Error(err.message ?? 'Notion 페이지 생성 실패');
   }
-  const page = await res.json() as NotionPage;
+  const page = (await res.json()) as NotionPage;
   return pageToResume(page);
 }
 
-export async function updateResumeTitle(token: string, id: string, title: string): Promise<void> {
+export async function updateResumeTitle(
+  token: string,
+  id: string,
+  title: string
+): Promise<void> {
   const res = await fetch(`https://api.notion.com/v1/pages/${id}`, {
     method: 'PATCH',
     headers: notionHeaders(token),
@@ -211,7 +264,10 @@ export async function deleteResume(token: string, id: string): Promise<void> {
 
 // ── Sections ──────────────────────────────────────────────────────────────────
 
-export async function getSections(token: string, resumeId: string): Promise<ResumeSection[]> {
+export async function getSections(
+  token: string,
+  resumeId: string
+): Promise<ResumeSection[]> {
   return sortSectionsByOrder(await readSections(token, resumeId));
 }
 
@@ -221,7 +277,7 @@ export async function createSection(
   type: SectionType,
   content: SectionContent,
   orderIndex: number,
-  layout = 'layout1',
+  layout = 'layout1'
 ): Promise<ResumeSection> {
   const sections = await readSections(token, resumeId);
   const now = new Date().toISOString();
@@ -239,12 +295,19 @@ export async function createSection(
   return newSection;
 }
 
-export async function updateSectionLayout(token: string, resumeId: string, id: string, layout: string): Promise<void> {
+export async function updateSectionLayout(
+  token: string,
+  resumeId: string,
+  id: string,
+  layout: string
+): Promise<void> {
   const sections = await readSections(token, resumeId);
   await writeSections(
     token,
     resumeId,
-    sections.map((s) => s.id === id ? { ...s, layout, updated_at: new Date().toISOString() } : s),
+    sections.map((s) =>
+      s.id === id ? { ...s, layout, updated_at: new Date().toISOString() } : s
+    )
   );
 }
 
@@ -252,28 +315,51 @@ export async function updateSectionContent(
   token: string,
   resumeId: string,
   id: string,
-  content: SectionContent,
+  content: SectionContent
 ): Promise<void> {
   const sections = await readSections(token, resumeId);
   await writeSections(
     token,
     resumeId,
-    sections.map((s) => s.id === id ? { ...s, content, updated_at: new Date().toISOString() } : s),
+    sections.map((s) =>
+      s.id === id ? { ...s, content, updated_at: new Date().toISOString() } : s
+    )
   );
 }
 
-export async function updateSectionOrder(token: string, resumeId: string, id: string, orderIndex: number): Promise<void> {
+export async function updateSectionOrder(
+  token: string,
+  resumeId: string,
+  id: string,
+  orderIndex: number
+): Promise<void> {
   const sections = await readSections(token, resumeId);
   await writeSections(
     token,
     resumeId,
     sortSectionsByOrder(
-      sections.map((s) => s.id === id ? { ...s, order_index: orderIndex, updated_at: new Date().toISOString() } : s),
-    ),
+      sections.map((s) =>
+        s.id === id
+          ? {
+              ...s,
+              order_index: orderIndex,
+              updated_at: new Date().toISOString(),
+            }
+          : s
+      )
+    )
   );
 }
 
-export async function deleteSection(token: string, resumeId: string, id: string): Promise<void> {
+export async function deleteSection(
+  token: string,
+  resumeId: string,
+  id: string
+): Promise<void> {
   const sections = await readSections(token, resumeId);
-  await writeSections(token, resumeId, sections.filter((s) => s.id !== id));
+  await writeSections(
+    token,
+    resumeId,
+    sections.filter((s) => s.id !== id)
+  );
 }

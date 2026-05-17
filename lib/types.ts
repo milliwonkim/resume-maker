@@ -1,11 +1,11 @@
 export type SectionType =
-  | "header"
-  | "summary"
-  | "text"
-  | "experience"
-  | "education"
-  | "skills"
-  | "projects";
+  | 'header'
+  | 'summary'
+  | 'text'
+  | 'experience'
+  | 'education'
+  | 'skills'
+  | 'projects';
 
 export interface Resume {
   id: string;
@@ -48,6 +48,17 @@ export interface TextContent {
 }
 
 // ── Experience ──────────────────────────────────────────
+export interface ExperienceProject {
+  id: string;
+  name: string;
+  startDate?: string;
+  endDate?: string;
+  tech?: string;
+  problem?: string;
+  ownership?: string;
+  achievement?: string;
+}
+
 export interface ExperienceItem {
   id: string;
   company: string;
@@ -55,7 +66,13 @@ export interface ExperienceItem {
   location: string;
   startDate: string;
   endDate: string;
-  description: string;
+  projects?: ExperienceProject[];
+  // legacy fields (backward compat — used when projects is absent)
+  tech?: string;
+  problem?: string;
+  ownership?: string;
+  achievement?: string;
+  description?: string;
 }
 
 export interface ExperienceContent {
@@ -140,13 +157,13 @@ export type SectionContent =
   | ProjectsContent;
 
 export const SECTION_LABELS: Record<SectionType, string> = {
-  header: "기본 정보",
-  summary: "자기소개",
-  text: "일반 텍스트",
-  experience: "경력",
-  education: "학력",
-  skills: "기술",
-  projects: "프로젝트",
+  header: '기본 정보',
+  summary: '자기소개',
+  text: '일반 텍스트',
+  experience: '경력',
+  education: '학력',
+  skills: '기술',
+  projects: '프로젝트',
 };
 
 export const LAYOUT_OPTIONS: Record<
@@ -154,111 +171,116 @@ export const LAYOUT_OPTIONS: Record<
   { id: string; label: string }[]
 > = {
   header: [
-    { id: "layout1", label: "중앙 정렬" },
-    { id: "layout2", label: "좌측 정렬" },
-    { id: "layout3", label: "두 컬럼" },
+    { id: 'layout1', label: '중앙 정렬' },
+    { id: 'layout2', label: '좌측 정렬' },
+    { id: 'layout3', label: '두 컬럼' },
   ],
   summary: [
-    { id: "layout1", label: "박스형" },
-    { id: "layout2", label: "인용구형" },
+    { id: 'layout1', label: '박스형' },
+    { id: 'layout2', label: '인용구형' },
   ],
   text: [
-    { id: "layout1", label: "기본형" },
-    { id: "layout2", label: "강조형" },
+    { id: 'layout1', label: '기본형' },
+    { id: 'layout2', label: '강조형' },
   ],
   experience: [
-    { id: "layout1", label: "타임라인" },
-    { id: "layout2", label: "카드형" },
-    { id: "layout3", label: "컴팩트" },
+    { id: 'layout1', label: '타임라인' },
+    { id: 'layout2', label: '카드형' },
+    { id: 'layout3', label: '컴팩트' },
   ],
   education: [
-    { id: "layout1", label: "기본형" },
-    { id: "layout2", label: "인라인형" },
+    { id: 'layout1', label: '기본형' },
+    { id: 'layout2', label: '인라인형' },
   ],
   skills: [
-    { id: "layout1", label: "태그형" },
-    { id: "layout2", label: "그룹형" },
-    { id: "layout3", label: "두 컬럼" },
+    { id: 'layout1', label: '태그형' },
+    { id: 'layout2', label: '그룹형' },
+    { id: 'layout3', label: '두 컬럼' },
   ],
   projects: [
-    { id: "layout1", label: "카드형" },
-    { id: "layout2", label: "리스트형" },
+    { id: 'layout1', label: '카드형' },
+    { id: 'layout2', label: '리스트형' },
   ],
 };
 
-const DEFAULT_EXPERIENCE_DESCRIPTION = [
-  '- 해결한 문제: 어떤 비즈니스/제품/기술 문제를 다뤘는지',
-  '- 맡은 역할: 본인이 주도하거나 책임진 범위',
-  '- 성과: 수치, 품질 개선, 비용 절감, 일정 단축 등 확인 가능한 결과',
-].join('\n');
-
 export function makeDefaultContent(type: SectionType): SectionContent {
   switch (type) {
-    case "header":
+    case 'header':
       return {
-        name: "",
-        title: "",
-        email: "",
-        phone: "",
-        location: "",
-        linkedin: "",
-        github: "",
-        website: "",
+        name: '',
+        title: '',
+        email: '',
+        phone: '',
+        location: '',
+        linkedin: '',
+        github: '',
+        website: '',
       } satisfies HeaderContent;
-    case "summary":
-      return { text: "자기소개를 작성해주세요." } satisfies SummaryContent;
-    case "text":
-      return { text: "내용을 작성해주세요." } satisfies TextContent;
-    case "experience":
+    case 'summary':
+      return { text: '자기소개를 작성해주세요.' } satisfies SummaryContent;
+    case 'text':
+      return { text: '내용을 작성해주세요.' } satisfies TextContent;
+    case 'experience':
       return {
         items: [
           {
             id: crypto.randomUUID(),
-            company: "회사명",
-            role: "직책",
-            location: "서울",
-            startDate: "2022.01",
-            endDate: "현재",
-            description: DEFAULT_EXPERIENCE_DESCRIPTION,
+            company: '회사명',
+            role: '직책',
+            location: '서울',
+            startDate: '2022.01',
+            endDate: '현재',
+            projects: [
+              {
+                id: crypto.randomUUID(),
+                name: '프로젝트명',
+                startDate: '',
+                endDate: '',
+                tech: '',
+                problem: '',
+                ownership: '',
+                achievement: '',
+              },
+            ],
           },
         ],
       } satisfies ExperienceContent;
-    case "education":
+    case 'education':
       return {
         items: [
           {
             id: crypto.randomUUID(),
             schoolType: 'university',
-            school: "대학교",
-            degree: "학사",
-            field: "컴퓨터공학",
+            school: '대학교',
+            degree: '학사',
+            field: '컴퓨터공학',
             additionalMajors: [],
-            startDate: "2018.03",
-            endDate: "2022.02",
+            startDate: '2018.03',
+            endDate: '2022.02',
             gpa: '',
             gpaScale: '4.5',
           },
         ],
       } satisfies EducationContent;
-    case "skills":
+    case 'skills':
       return {
         categories: [
           {
             id: crypto.randomUUID(),
-            name: "Frontend",
-            skills: "React, TypeScript, Next.js",
+            name: 'Frontend',
+            skills: 'React, TypeScript, Next.js',
           },
         ],
       } satisfies SkillsContent;
-    case "projects":
+    case 'projects':
       return {
         items: [
           {
             id: crypto.randomUUID(),
-            name: "프로젝트명",
-            description: "프로젝트 설명을 작성하세요.",
-            tech: "React, TypeScript",
-            link: "",
+            name: '프로젝트명',
+            description: '프로젝트 설명을 작성하세요.',
+            tech: 'React, TypeScript',
+            link: '',
           },
         ],
       } satisfies ProjectsContent;
@@ -266,11 +288,11 @@ export function makeDefaultContent(type: SectionType): SectionContent {
 }
 
 export const DEFAULT_CONTENT: Record<SectionType, SectionContent> = {
-  header: makeDefaultContent("header"),
-  summary: makeDefaultContent("summary"),
-  text: makeDefaultContent("text"),
-  experience: makeDefaultContent("experience"),
-  education: makeDefaultContent("education"),
-  skills: makeDefaultContent("skills"),
-  projects: makeDefaultContent("projects"),
+  header: makeDefaultContent('header'),
+  summary: makeDefaultContent('summary'),
+  text: makeDefaultContent('text'),
+  experience: makeDefaultContent('experience'),
+  education: makeDefaultContent('education'),
+  skills: makeDefaultContent('skills'),
+  projects: makeDefaultContent('projects'),
 };

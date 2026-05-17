@@ -48,7 +48,12 @@ interface NotionProperty {
   phone_number?: string | null;
   people?: Array<{ name?: string }>;
   relation?: unknown[];
-  formula?: { type: string; string?: string; number?: number; boolean?: boolean };
+  formula?: {
+    type: string;
+    string?: string;
+    number?: number;
+    boolean?: boolean;
+  };
 }
 
 interface NotionPageResponse {
@@ -70,7 +75,10 @@ function notionHeaders(token: string): HeadersInit {
   };
 }
 
-async function fetchAllBlocks(blockId: string, token: string): Promise<NotionBlock[]> {
+async function fetchAllBlocks(
+  blockId: string,
+  token: string
+): Promise<NotionBlock[]> {
   const blocks: NotionBlock[] = [];
   let cursor: string | null = null;
 
@@ -82,7 +90,7 @@ async function fetchAllBlocks(blockId: string, token: string): Promise<NotionBlo
     const res = await fetch(url.toString(), { headers: notionHeaders(token) });
     if (!res.ok) break;
 
-    const data = await res.json() as NotionBlocksResponse;
+    const data = (await res.json()) as NotionBlocksResponse;
     blocks.push(...data.results);
     cursor = data.has_more ? data.next_cursor : null;
   } while (cursor);
@@ -96,8 +104,10 @@ async function fetchPageTitle(pageId: string, token: string): Promise<string> {
   });
   if (!res.ok) return '';
 
-  const page = await res.json() as NotionPageResponse;
-  const titleProp = Object.values(page.properties).find((p) => p.type === 'title');
+  const page = (await res.json()) as NotionPageResponse;
+  const titleProp = Object.values(page.properties).find(
+    (p) => p.type === 'title'
+  );
   return titleProp?.title?.map((t) => t.plain_text).join('') ?? '';
 }
 
@@ -112,7 +122,9 @@ function extractPropertyValue(prop: NotionProperty): string {
     case 'rich_text':
       return extractRichText(prop.rich_text ?? []);
     case 'number':
-      return prop.number !== null && prop.number !== undefined ? String(prop.number) : '';
+      return prop.number !== null && prop.number !== undefined
+        ? String(prop.number)
+        : '';
     case 'select':
       return prop.select?.name ?? '';
     case 'multi_select':
@@ -121,7 +133,9 @@ function extractPropertyValue(prop: NotionProperty): string {
       return prop.status?.name ?? '';
     case 'date': {
       if (!prop.date) return '';
-      return prop.date.end ? `${prop.date.start} ~ ${prop.date.end}` : prop.date.start;
+      return prop.date.end
+        ? `${prop.date.start} ~ ${prop.date.end}`
+        : prop.date.start;
     }
     case 'checkbox':
       return prop.checkbox ? '✓' : '✗';
@@ -132,14 +146,20 @@ function extractPropertyValue(prop: NotionProperty): string {
     case 'phone_number':
       return prop.phone_number ?? '';
     case 'people':
-      return (prop.people ?? []).map((p) => p.name ?? '').filter(Boolean).join(', ');
+      return (prop.people ?? [])
+        .map((p) => p.name ?? '')
+        .filter(Boolean)
+        .join(', ');
     case 'relation':
-      return (prop.relation ?? []).length > 0 ? `[관계 ${(prop.relation ?? []).length}개]` : '';
+      return (prop.relation ?? []).length > 0
+        ? `[관계 ${(prop.relation ?? []).length}개]`
+        : '';
     case 'formula': {
       const f = prop.formula;
       if (!f) return '';
       if (f.type === 'string') return f.string ?? '';
-      if (f.type === 'number') return f.number !== undefined ? String(f.number) : '';
+      if (f.type === 'number')
+        return f.number !== undefined ? String(f.number) : '';
       if (f.type === 'boolean') return f.boolean ? '✓' : '✗';
       return '';
     }
@@ -148,15 +168,21 @@ function extractPropertyValue(prop: NotionProperty): string {
   }
 }
 
-async function queryDatabase(databaseId: string, token: string): Promise<string> {
+async function queryDatabase(
+  databaseId: string,
+  token: string
+): Promise<string> {
   // Fetch schema for property order
-  const schemaRes = await fetch(`https://api.notion.com/v1/databases/${databaseId}`, {
-    headers: notionHeaders(token),
-  });
+  const schemaRes = await fetch(
+    `https://api.notion.com/v1/databases/${databaseId}`,
+    {
+      headers: notionHeaders(token),
+    }
+  );
 
   let propOrder: string[] = [];
   if (schemaRes.ok) {
-    const schema = await schemaRes.json() as NotionDatabaseResponse;
+    const schema = (await schemaRes.json()) as NotionDatabaseResponse;
     propOrder = Object.keys(schema.properties);
   }
 
@@ -164,22 +190,26 @@ async function queryDatabase(databaseId: string, token: string): Promise<string>
   let cursor: string | null = null;
 
   do {
-    const res = await fetch(`https://api.notion.com/v1/databases/${databaseId}/query`, {
-      method: 'POST',
-      headers: notionHeaders(token),
-      body: JSON.stringify({
-        page_size: 100,
-        ...(cursor ? { start_cursor: cursor } : {}),
-      }),
-    });
+    const res = await fetch(
+      `https://api.notion.com/v1/databases/${databaseId}/query`,
+      {
+        method: 'POST',
+        headers: notionHeaders(token),
+        body: JSON.stringify({
+          page_size: 100,
+          ...(cursor ? { start_cursor: cursor } : {}),
+        }),
+      }
+    );
     if (!res.ok) break;
 
-    const data = await res.json() as DatabaseQueryResponse;
+    const data = (await res.json()) as DatabaseQueryResponse;
 
     for (const page of data.results) {
-      const orderedProps = propOrder.length > 0
-        ? propOrder.map((key) => page.properties[key]).filter(Boolean)
-        : Object.values(page.properties);
+      const orderedProps =
+        propOrder.length > 0
+          ? propOrder.map((key) => page.properties[key]).filter(Boolean)
+          : Object.values(page.properties);
 
       const parts = orderedProps
         .map((prop) => extractPropertyValue(prop))
@@ -194,7 +224,11 @@ async function queryDatabase(databaseId: string, token: string): Promise<string>
   return rows.join('\n');
 }
 
-async function processBlock(block: NotionBlock, token: string, depth: number): Promise<string> {
+async function processBlock(
+  block: NotionBlock,
+  token: string,
+  depth: number
+): Promise<string> {
   const indent = '  '.repeat(depth);
   const type = block.type;
   const content = block[type] as Record<string, unknown> | undefined;
@@ -241,7 +275,8 @@ async function processBlock(block: NotionBlock, token: string, depth: number): P
     }
     case 'callout': {
       const icon = (content?.icon as { emoji?: string })?.emoji ?? '';
-      text = `${indent}${icon} ${extractRichText((content?.rich_text as RichText[]) ?? [])}`.trim();
+      text =
+        `${indent}${icon} ${extractRichText((content?.rich_text as RichText[]) ?? [])}`.trim();
       break;
     }
     case 'code': {
@@ -269,9 +304,10 @@ async function processBlock(block: NotionBlock, token: string, depth: number): P
     case 'file':
     case 'pdf': {
       const fileType = content?.type as string;
-      const url = fileType === 'external'
-        ? (content?.external as { url: string } | undefined)?.url
-        : (content?.file as { url: string } | undefined)?.url;
+      const url =
+        fileType === 'external'
+          ? (content?.external as { url: string } | undefined)?.url
+          : (content?.file as { url: string } | undefined)?.url;
       const caption = extractRichText((content?.caption as RichText[]) ?? []);
       text = `[${type}${caption ? `: ${caption}` : ''}${url ? ` (${url})` : ''}]`;
       break;
@@ -279,7 +315,7 @@ async function processBlock(block: NotionBlock, token: string, depth: number): P
     case 'bookmark':
     case 'embed':
     case 'link_preview': {
-      const url = content?.url as string ?? '';
+      const url = (content?.url as string) ?? '';
       const caption = extractRichText((content?.caption as RichText[]) ?? []);
       text = `[${type}${caption ? `: ${caption}` : ''}: ${url}]`;
       break;
@@ -298,7 +334,9 @@ async function processBlock(block: NotionBlock, token: string, depth: number): P
       return text;
     }
     case 'link_to_page': {
-      const linkedId = (content?.page_id ?? content?.database_id) as string | undefined;
+      const linkedId = (content?.page_id ?? content?.database_id) as
+        | string
+        | undefined;
       text = linkedId ? `[연결: ${linkedId}]` : '[연결된 페이지]';
       break;
     }
@@ -325,7 +363,11 @@ async function processBlock(block: NotionBlock, token: string, depth: number): P
   return text;
 }
 
-async function processBlocks(blocks: NotionBlock[], token: string, depth: number): Promise<string> {
+async function processBlocks(
+  blocks: NotionBlock[],
+  token: string,
+  depth: number
+): Promise<string> {
   const lines: string[] = [];
   for (const block of blocks) {
     const text = await processBlock(block, token, depth);
@@ -338,12 +380,15 @@ export async function POST(request: NextRequest) {
   const cookieStore = await cookies();
   const token = cookieStore.get('notion_token')?.value;
   if (!token) {
-    return Response.json({ error: 'Notion 토큰이 필요합니다.' }, { status: 401 });
+    return Response.json(
+      { error: 'Notion 토큰이 필요합니다.' },
+      { status: 401 }
+    );
   }
 
   let pageId: string;
   try {
-    const body = await request.json() as { pageId?: string };
+    const body = (await request.json()) as { pageId?: string };
     if (!body.pageId) {
       return Response.json({ error: 'pageId가 필요합니다.' }, { status: 400 });
     }
@@ -355,19 +400,28 @@ export async function POST(request: NextRequest) {
   try {
     // Determine if this is a page or a database
     const [pageRes, dbRes] = await Promise.all([
-      fetch(`https://api.notion.com/v1/pages/${pageId}`, { headers: notionHeaders(token) }),
-      fetch(`https://api.notion.com/v1/databases/${pageId}`, { headers: notionHeaders(token) }),
+      fetch(`https://api.notion.com/v1/pages/${pageId}`, {
+        headers: notionHeaders(token),
+      }),
+      fetch(`https://api.notion.com/v1/databases/${pageId}`, {
+        headers: notionHeaders(token),
+      }),
     ]);
 
     if (!pageRes.ok && !dbRes.ok) {
-      return Response.json({ error: '페이지 또는 데이터베이스를 찾을 수 없습니다.' }, { status: 404 });
+      return Response.json(
+        { error: '페이지 또는 데이터베이스를 찾을 수 없습니다.' },
+        { status: 404 }
+      );
     }
 
     let text = '';
 
     if (pageRes.ok) {
-      const page = await pageRes.json() as NotionPageResponse;
-      const titleProp = Object.values(page.properties).find((p) => p.type === 'title');
+      const page = (await pageRes.json()) as NotionPageResponse;
+      const titleProp = Object.values(page.properties).find(
+        (p) => p.type === 'title'
+      );
       const title = titleProp?.title?.map((t) => t.plain_text).join('') ?? '';
       if (title) text += `# ${title}\n\n`;
 
@@ -375,8 +429,9 @@ export async function POST(request: NextRequest) {
       const body = await processBlocks(blocks, token, 0);
       text += body;
     } else if (dbRes.ok) {
-      const db = await dbRes.json() as NotionDatabaseResponse;
-      const title = db.title?.map((t) => t.plain_text).join('') ?? '데이터베이스';
+      const db = (await dbRes.json()) as NotionDatabaseResponse;
+      const title =
+        db.title?.map((t) => t.plain_text).join('') ?? '데이터베이스';
       text = `# ${title}\n\n`;
       text += await queryDatabase(pageId, token);
     }
@@ -384,7 +439,9 @@ export async function POST(request: NextRequest) {
     return Response.json({ text: text.trim() });
   } catch (err) {
     return Response.json(
-      { error: `페이지 불러오기 실패: ${err instanceof Error ? err.message : '알 수 없는 오류'}` },
+      {
+        error: `페이지 불러오기 실패: ${err instanceof Error ? err.message : '알 수 없는 오류'}`,
+      },
       { status: 500 }
     );
   }

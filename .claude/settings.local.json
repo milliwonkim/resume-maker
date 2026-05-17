@@ -14,7 +14,9 @@
       "Bash(curl -s -X POST http://localhost:3000/api/resumes/2/sections -H 'Content-Type: application/json' -d '{\"type\":\"experience\",\"content\":{\"items\":[{\"id\":\"abc\",\"company\":\"회사\",\"role\":\"개발자\",\"location\":\"서울\",\"startDate\":\"2022.01\",\"endDate\":\"현재\",\"description\":\"설명\"}]},\"order_index\":1}')",
       "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(json.dumps\\(d, indent=2, ensure_ascii=False\\)\\)\")",
       "Bash(curl -s 'https://xkawtpdqhtcigxbniazb.supabase.co/rest/v1/resumes?select=*&limit=1' -H 'apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhrYXd0cGRxaHRjaWd4Ym5pYXpiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcxMTczMTUsImV4cCI6MjA5MjY5MzMxNX0.KpWb3ne8kyWJh1HHFXT6fozlym0t2nMBhvt7KA3kUDI' -H 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhrYXd0cGRxaHRjaWd4Ym5pYXpiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcxMTczMTUsImV4cCI6MjA5MjY5MzMxNX0.KpWb3ne8kyWJh1HHFXT6fozlym0t2nMBhvt7KA3kUDI')",
-      "Bash(npx tsc *)"
+      "Bash(npx tsc *)",
+      "Bash(pnpm format *)",
+      "Bash(pnpm build *)"
     ]
   }
 }

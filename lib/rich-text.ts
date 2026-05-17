@@ -6,7 +6,19 @@ const HTML_ENTITY_MAP: Record<string, string> = {
   "'": '&#39;',
 };
 
-const ALLOWED_TAGS = new Set(['P', 'STRONG', 'B', 'EM', 'I', 'S', 'U', 'UL', 'OL', 'LI', 'BR']);
+const ALLOWED_TAGS = new Set([
+  'P',
+  'STRONG',
+  'B',
+  'EM',
+  'I',
+  'S',
+  'U',
+  'UL',
+  'OL',
+  'LI',
+  'BR',
+]);
 const VOID_TAGS = new Set(['BR']);
 const HTML_TAG_PATTERN = /<\/?[a-z][\s\S]*>/i;
 const CODE_FENCE_PATTERN = /^```(?:html|markdown|md)?\s*([\s\S]*?)\s*```$/i;
@@ -50,7 +62,10 @@ function sanitizeHtml(value: string): string {
     return escapeHtml(value);
   }
 
-  const document = new DOMParser().parseFromString(`<div>${value}</div>`, 'text/html');
+  const document = new DOMParser().parseFromString(
+    `<div>${value}</div>`,
+    'text/html'
+  );
   const container = document.body.firstElementChild;
   if (!container) return '';
 
@@ -103,7 +118,9 @@ function markdownToHtml(value: string): string {
         index += 1;
       }
 
-      blocks.push(`<${isOrdered ? 'ol' : 'ul'}>${items.join('')}</${isOrdered ? 'ol' : 'ul'}>`);
+      blocks.push(
+        `<${isOrdered ? 'ol' : 'ul'}>${items.join('')}</${isOrdered ? 'ol' : 'ul'}>`
+      );
       continue;
     }
 

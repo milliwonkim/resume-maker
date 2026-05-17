@@ -36,9 +36,13 @@ export function ProjectsSection({ content, layout, onChange }: Props) {
 
   if (layout === 'layout1') {
     return (
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4">
         {content.items.map((item) => (
-          <div key={item.id} className="resume-action-host border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow focus:outline-none" tabIndex={0}>
+          <div
+            key={item.id}
+            className="resume-action-host rounded-lg border border-gray-200 p-4 transition-shadow hover:shadow-md focus:outline-none"
+            tabIndex={0}
+          >
             <div className="flex items-start justify-between">
               <EditableField
                 value={item.name}
@@ -58,12 +62,15 @@ export function ProjectsSection({ content, layout, onChange }: Props) {
             <RichTextField
               value={item.description}
               onChange={(v) => update(item.id, { description: v })}
-              className="text-sm text-gray-600 mt-2 leading-relaxed block w-full"
+              className="mt-2 block w-full text-sm leading-relaxed text-gray-600"
               placeholder="프로젝트 설명"
             />
             <div className="mt-3 flex flex-wrap gap-1">
               {item.tech.split(',').map((t, i) => (
-                <span key={i} className="bg-gray-100 text-gray-600 px-2 py-0.5 rounded text-xs">
+                <span
+                  key={i}
+                  className="rounded bg-gray-100 px-2 py-0.5 text-xs text-gray-600"
+                >
                   {t.trim()}
                 </span>
               ))}
@@ -72,13 +79,25 @@ export function ProjectsSection({ content, layout, onChange }: Props) {
               value={item.tech}
               onChange={(v) => update(item.id, { tech: v })}
               tag="p"
-              className="text-xs text-gray-400 mt-1"
+              className="mt-1 text-xs text-gray-400"
               placeholder="기술 스택 (쉼표로 구분)"
             />
-            <div className="no-print resume-action-buttons gap-1 mt-2">
-              <button type="button" onClick={add} className="text-xs text-blue-500 hover:text-blue-700 px-2 py-0.5 border border-blue-200 rounded">+ 추가</button>
+            <div className="no-print resume-action-buttons mt-2 gap-1">
+              <button
+                type="button"
+                onClick={add}
+                className="rounded border border-blue-200 px-2 py-0.5 text-xs text-blue-500 hover:text-blue-700"
+              >
+                + 추가
+              </button>
               {content.items.length > 1 && (
-                <button type="button" onClick={() => remove(item.id)} className="text-xs text-red-400 hover:text-red-600 px-2 py-0.5 border border-red-200 rounded">삭제</button>
+                <button
+                  type="button"
+                  onClick={() => remove(item.id)}
+                  className="rounded border border-red-200 px-2 py-0.5 text-xs text-red-400 hover:text-red-600"
+                >
+                  삭제
+                </button>
               )}
             </div>
           </div>
@@ -91,9 +110,13 @@ export function ProjectsSection({ content, layout, onChange }: Props) {
   return (
     <div className="space-y-4">
       {content.items.map((item) => (
-        <div key={item.id} className="resume-action-host flex gap-4 items-start border-b border-gray-100 pb-4 last:border-0 focus:outline-none" tabIndex={0}>
+        <div
+          key={item.id}
+          className="resume-action-host flex items-start gap-4 border-b border-gray-100 pb-4 last:border-0 focus:outline-none"
+          tabIndex={0}
+        >
           <div className="flex-1">
-            <div className="flex items-center gap-3 flex-wrap">
+            <div className="flex flex-wrap items-center gap-3">
               <EditableField
                 value={item.name}
                 onChange={(v) => update(item.id, { name: v })}
@@ -119,14 +142,26 @@ export function ProjectsSection({ content, layout, onChange }: Props) {
             <RichTextField
               value={item.description}
               onChange={(v) => update(item.id, { description: v })}
-              className="text-sm text-gray-600 mt-1 leading-relaxed block w-full"
+              className="mt-1 block w-full text-sm leading-relaxed text-gray-600"
               placeholder="프로젝트 설명"
             />
           </div>
-          <div className="no-print resume-action-buttons gap-1 shrink-0">
-            <button type="button" onClick={add} className="text-xs text-blue-500 hover:text-blue-700 px-2 py-0.5 border border-blue-200 rounded">+ 추가</button>
+          <div className="no-print resume-action-buttons shrink-0 gap-1">
+            <button
+              type="button"
+              onClick={add}
+              className="rounded border border-blue-200 px-2 py-0.5 text-xs text-blue-500 hover:text-blue-700"
+            >
+              + 추가
+            </button>
             {content.items.length > 1 && (
-              <button type="button" onClick={() => remove(item.id)} className="text-xs text-red-400 hover:text-red-600 px-2 py-0.5 border border-red-200 rounded">삭제</button>
+              <button
+                type="button"
+                onClick={() => remove(item.id)}
+                className="rounded border border-red-200 px-2 py-0.5 text-xs text-red-400 hover:text-red-600"
+              >
+                삭제
+              </button>
             )}
           </div>
         </div>

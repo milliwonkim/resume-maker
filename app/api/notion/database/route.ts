@@ -46,7 +46,9 @@ interface DatabaseRequestBody {
 
 function normalizePageId(input: string): string | null {
   const trimmed = input.trim();
-  const uuidMatch = trimmed.match(/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/i);
+  const uuidMatch = trimmed.match(
+    /([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/i
+  );
   if (uuidMatch) return uuidMatch[1];
 
   const compactMatch = trimmed.match(/([0-9a-f]{32})(?:[?#]|$)/i);
@@ -56,17 +58,23 @@ function normalizePageId(input: string): string | null {
   return `${raw.slice(0, 8)}-${raw.slice(8, 12)}-${raw.slice(12, 16)}-${raw.slice(16, 20)}-${raw.slice(20)}`;
 }
 
-async function validateParentPage(token: string, parentPageId: string): Promise<Response | null> {
-  const pageRes = await fetch(`https://api.notion.com/v1/pages/${parentPageId}`, {
-    headers: notionHeaders(token),
-  });
+async function validateParentPage(
+  token: string,
+  parentPageId: string
+): Promise<Response | null> {
+  const pageRes = await fetch(
+    `https://api.notion.com/v1/pages/${parentPageId}`,
+    {
+      headers: notionHeaders(token),
+    }
+  );
 
   if (pageRes.ok) return null;
 
-  const err = await pageRes.json() as { message?: string };
+  const err = (await pageRes.json()) as { message?: string };
   return Response.json(
     { error: err.message ?? '유효한 Notion 페이지를 찾을 수 없습니다.' },
-    { status: pageRes.status },
+    { status: pageRes.status }
   );
 }
 
@@ -81,16 +89,28 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   const store = await cookies();
   const token = store.get('notion_token')?.value;
-  if (!token) return Response.json({ error: 'Notion 연결이 필요합니다.' }, { status: 401 });
+  if (!token)
+    return Response.json(
+      { error: 'Notion 연결이 필요합니다.' },
+      { status: 401 }
+    );
 
   let parentPageId: string;
   try {
-    const body = await request.json() as DatabaseRequestBody;
+    const body = (await request.json()) as DatabaseRequestBody;
     const rawParentPageId = body.parentPageId ?? body.parentPageUrl;
-    if (!rawParentPageId) return Response.json({ error: '저장할 Notion 페이지가 필요합니다.' }, { status: 400 });
+    if (!rawParentPageId)
+      return Response.json(
+        { error: '저장할 Notion 페이지가 필요합니다.' },
+        { status: 400 }
+      );
 
     const normalizedPageId = normalizePageId(rawParentPageId);
-    if (!normalizedPageId) return Response.json({ error: '올바른 Notion 페이지 링크 또는 ID를 입력해주세요.' }, { status: 400 });
+    if (!normalizedPageId)
+      return Response.json(
+        { error: '올바른 Notion 페이지 링크 또는 ID를 입력해주세요.' },
+        { status: 400 }
+      );
 
     parentPageId = normalizedPageId;
   } catch {
@@ -113,12 +133,12 @@ export async function POST(request: NextRequest) {
     });
 
     if (searchRes.ok) {
-      const searchData = await searchRes.json() as NotionSearchResponse;
+      const searchData = (await searchRes.json()) as NotionSearchResponse;
       const existing = searchData.results.find(
         (db) =>
           db.title?.map((t) => t.plain_text).join('') === DB_TITLE &&
           db.parent.type === 'page_id' &&
-          db.parent.page_id === parentPageId,
+          db.parent.page_id === parentPageId
       );
       if (existing) {
         store.set(DB_COOKIE, existing.id, COOKIE_OPTIONS);
@@ -140,20 +160,20 @@ export async function POST(request: NextRequest) {
     });
 
     if (!createRes.ok) {
-      const err = await createRes.json() as { message?: string };
+      const err = (await createRes.json()) as { message?: string };
       return Response.json(
         { error: err.message ?? '데이터베이스 생성 실패' },
-        { status: createRes.status },
+        { status: createRes.status }
       );
     }
 
-    const db = await createRes.json() as NotionDatabase;
+    const db = (await createRes.json()) as NotionDatabase;
     store.set(DB_COOKIE, db.id, COOKIE_OPTIONS);
     return Response.json({ databaseId: db.id, created: true });
   } catch (err) {
     return Response.json(
       { error: err instanceof Error ? err.message : '알 수 없는 오류' },
-      { status: 500 },
+      { status: 500 }
     );
   }
 }

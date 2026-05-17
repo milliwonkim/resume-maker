@@ -4,8 +4,11 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useResumeStore } from '@/store/resume';
 import { useAIStore } from '@/store/ai';
+import { useAIJobsStore, type AIJob } from '@/store/ai-jobs';
+import { applyAIResult } from '@/lib/ai-apply';
 import { ResumeEditor, type ResumeEditorRef } from './ResumeEditor';
 import { SettingsDialog } from '@/components/settings/SettingsDialog';
+import { AIPanel } from '@/components/ai/AIPanel';
 import type { Resume } from '@/lib/types';
 
 interface Props {
@@ -14,11 +17,26 @@ interface Props {
 
 export function ResumeEditorPage({ resumeId }: Props) {
   const router = useRouter();
-  const { resumes, setResumes, setCurrentResume, setSections, currentResume, isSaving, history, updateResumeTitle, undo, setIsSaving } =
-    useResumeStore();
+  const {
+    resumes,
+    setResumes,
+    setCurrentResume,
+    setSections,
+    currentResume,
+    sections,
+    isSaving,
+    history,
+    updateResumeTitle,
+    undo,
+    setIsSaving,
+    updateSectionContent,
+  } = useResumeStore();
   const { autoSave } = useAIStore();
+  const { jobs, removeJob, clearCompleted } = useAIJobsStore();
 
   const [loading, setLoading] = useState(true);
+  const [aiJobPanelOpen, setAiJobPanelOpen] = useState(false);
+  const [selectedJob, setSelectedJob] = useState<AIJob | null>(null);
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleValue, setTitleValue] = useState('');
   const [savedTitle, setSavedTitle] = useState('');
@@ -65,7 +83,7 @@ export function ResumeEditorPage({ resumeId }: Props) {
       }
     }
     load();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [resumeId]);
 
   useEffect(() => {
@@ -116,7 +134,11 @@ export function ResumeEditorPage({ resumeId }: Props) {
             fetch(`/api/resumes/${resumeId}/sections/${s.id}`, {
               method: 'PATCH',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ content: s.content, layout: s.layout, order_index: s.order_index }),
+              body: JSON.stringify({
+                content: s.content,
+                layout: s.layout,
+                order_index: s.order_index,
+              }),
             })
           )
       );
@@ -125,14 +147,17 @@ export function ResumeEditorPage({ resumeId }: Props) {
     }
   }, [undo, resumeId, setIsSaving, autoSave]);
 
-  const saveTitle = useCallback(async (title: string) => {
-    await fetch(`/api/resumes/${resumeId}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title }),
-    });
-    setSavedTitle(title);
-  }, [resumeId]);
+  const saveTitle = useCallback(
+    async (title: string) => {
+      await fetch(`/api/resumes/${resumeId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title }),
+      });
+      setSavedTitle(title);
+    },
+    [resumeId]
+  );
 
   const handleManualSave = useCallback(async () => {
     setIsManuallySaving(true);
@@ -199,7 +224,11 @@ export function ResumeEditorPage({ resumeId }: Props) {
   const continueEditing = () => {
     setShowLeaveConfirm(false);
     if (leaveTarget === 'history') {
-      window.history.pushState({ unsavedGuard: true }, '', window.location.href);
+      window.history.pushState(
+        { unsavedGuard: true },
+        '',
+        window.location.href
+      );
     }
   };
 
@@ -219,7 +248,7 @@ export function ResumeEditorPage({ resumeId }: Props) {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-screen text-gray-400">
+      <div className="flex h-screen items-center justify-center text-gray-400">
         불러오는 중...
       </div>
     );
@@ -228,17 +257,17 @@ export function ResumeEditorPage({ resumeId }: Props) {
   return (
     <div className="resume-editor-shell min-h-screen bg-gray-100">
       {/* Toolbar */}
-      <header className="sticky top-0 z-30 bg-white border-b border-gray-200 shadow-sm">
-        <div className="max-w-6xl mx-auto px-3 sm:px-6 py-2 sm:py-3 flex items-center gap-2 sm:gap-4">
+      <header className="sticky top-0 z-30 border-b border-gray-200 bg-white shadow-sm">
+        <div className="mx-auto flex max-w-6xl items-center gap-2 px-3 py-2 sm:gap-4 sm:px-6 sm:py-3">
           <button
             type="button"
             onClick={handleBackClick}
-            className="text-sm text-gray-500 hover:text-gray-900 flex items-center gap-1 shrink-0"
+            className="flex shrink-0 items-center gap-1 text-sm text-gray-500 hover:text-gray-900"
           >
             ← <span className="hidden sm:inline">목록</span>
           </button>
 
-          <div className="h-4 w-px bg-gray-200 shrink-0" />
+          <div className="h-4 w-px shrink-0 bg-gray-200" />
 
           {editingTitle ? (
             <input
@@ -247,53 +276,87 @@ export function ResumeEditorPage({ resumeId }: Props) {
               onChange={(e) => setTitleValue(e.target.value)}
               onBlur={handleTitleSave}
               onKeyDown={(e) => e.key === 'Enter' && handleTitleSave()}
-              className="text-sm font-semibold text-gray-900 border-b-2 border-blue-400 outline-none bg-transparent min-w-0 flex-1"
+              className="min-w-0 flex-1 border-b-2 border-blue-400 bg-transparent text-sm font-semibold text-gray-900 outline-none"
             />
           ) : (
             <button
               type="button"
               onClick={() => setEditingTitle(true)}
-              className="text-sm font-semibold text-gray-900 hover:text-blue-600 transition-colors truncate max-w-25 sm:max-w-xs"
+              className="max-w-25 truncate text-sm font-semibold text-gray-900 transition-colors hover:text-blue-600 sm:max-w-xs"
             >
               {currentResume?.title ?? '이력서'}
-              <span className="ml-1 text-gray-300 text-xs">✏️</span>
+              <span className="ml-1 text-xs text-gray-300">✏️</span>
             </button>
           )}
 
-          <div className="ml-auto flex items-center gap-1.5 sm:gap-3 shrink-0">
+          <div className="ml-auto flex shrink-0 items-center gap-1.5 sm:gap-3">
+            {/* AI jobs status indicator */}
+            {jobs.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setAiJobPanelOpen(true)}
+                className="flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-50"
+                title="AI 작업 현황"
+              >
+                {jobs.some((j) => j.status === 'running') ? (
+                  <>
+                    <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-violet-500 border-t-transparent" />
+                    <span className="hidden sm:inline">AI 처리 중</span>
+                  </>
+                ) : (
+                  <>
+                    <span className="flex h-4 w-4 items-center justify-center rounded-full bg-green-100 text-xs text-green-600">✓</span>
+                    <span className="hidden sm:inline">AI 완료</span>
+                  </>
+                )}
+                <span className="flex h-4 w-4 items-center justify-center rounded-full bg-gray-100 text-xs text-gray-500">
+                  {jobs.length}
+                </span>
+              </button>
+            )}
+
             <button
               type="button"
               onClick={() => setSettingsOpen(true)}
               title="설정"
-              className="text-gray-400 hover:text-gray-700 transition-colors p-1.5 rounded-lg hover:bg-gray-100"
+              className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700"
             >
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="12" cy="12" r="3"/>
-                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+              <svg
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <circle cx="12" cy="12" r="3" />
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
               </svg>
             </button>
 
             {/* Save status indicator */}
             {autoSave ? (
               isSaving || hasPendingEditorChanges ? (
-                <span className="text-xs text-gray-400 flex items-center gap-1">
-                  <span className="w-1.5 h-1.5 rounded-full bg-yellow-400 animate-pulse inline-block" />
+                <span className="flex items-center gap-1 text-xs text-gray-400">
+                  <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-yellow-400" />
                   <span className="hidden sm:inline">저장 중...</span>
                 </span>
               ) : (
-                <span className="text-xs text-green-500 flex items-center gap-1">
-                  <span className="w-1.5 h-1.5 rounded-full bg-green-400 inline-block" />
+                <span className="flex items-center gap-1 text-xs text-green-500">
+                  <span className="inline-block h-1.5 w-1.5 rounded-full bg-green-400" />
                   <span className="hidden sm:inline">저장됨</span>
                 </span>
               )
             ) : hasUnsavedChanges ? (
-              <span className="text-xs text-orange-500 flex items-center gap-1">
-                <span className="w-1.5 h-1.5 rounded-full bg-orange-400 inline-block" />
+              <span className="flex items-center gap-1 text-xs text-orange-500">
+                <span className="inline-block h-1.5 w-1.5 rounded-full bg-orange-400" />
                 <span className="hidden sm:inline">저장 안 됨</span>
               </span>
             ) : (
-              <span className="text-xs text-green-500 flex items-center gap-1">
-                <span className="w-1.5 h-1.5 rounded-full bg-green-400 inline-block" />
+              <span className="flex items-center gap-1 text-xs text-green-500">
+                <span className="inline-block h-1.5 w-1.5 rounded-full bg-green-400" />
                 <span className="hidden sm:inline">저장됨</span>
               </span>
             )}
@@ -303,7 +366,7 @@ export function ResumeEditorPage({ resumeId }: Props) {
               onClick={handleUndo}
               disabled={!canUndo}
               title="실행 취소 (⌘Z)"
-              className="hidden sm:block text-sm border border-gray-300 hover:border-gray-400 text-gray-700 hover:text-gray-900 px-3 py-1.5 rounded-lg font-medium transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+              className="hidden rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 transition-colors hover:border-gray-400 hover:text-gray-900 disabled:cursor-not-allowed disabled:opacity-30 sm:block"
             >
               ↩ 실행취소
             </button>
@@ -315,18 +378,23 @@ export function ResumeEditorPage({ resumeId }: Props) {
                 onClick={handleManualSave}
                 disabled={!hasUnsavedChanges || isManuallySaving}
                 title="저장 (⌘S)"
-                className="text-xs sm:text-sm bg-blue-600 hover:bg-blue-700 disabled:bg-gray-200 disabled:text-gray-400 text-white px-3 sm:px-4 py-1.5 rounded-lg font-medium transition-colors whitespace-nowrap flex items-center gap-1.5"
+                className="flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium whitespace-nowrap text-white transition-colors hover:bg-blue-700 disabled:bg-gray-200 disabled:text-gray-400 sm:px-4 sm:text-sm"
               >
                 {isManuallySaving ? (
-                  <><span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />저장 중</>
-                ) : '저장'}
+                  <>
+                    <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                    저장 중
+                  </>
+                ) : (
+                  '저장'
+                )}
               </button>
             )}
 
             <button
               type="button"
               onClick={() => window.print()}
-              className="text-xs sm:text-sm bg-gray-900 hover:bg-gray-700 text-white px-3 sm:px-4 py-1.5 rounded-lg font-medium transition-colors whitespace-nowrap"
+              className="rounded-lg bg-gray-900 px-3 py-1.5 text-xs font-medium whitespace-nowrap text-white transition-colors hover:bg-gray-700 sm:px-4 sm:text-sm"
             >
               <span className="sm:hidden">PDF</span>
               <span className="hidden sm:inline">인쇄 / PDF</span>
@@ -334,14 +402,15 @@ export function ResumeEditorPage({ resumeId }: Props) {
           </div>
         </div>
         {!autoSave && hasUnsavedChanges && (
-          <div className="border-t border-orange-100 bg-orange-50 px-3 sm:px-6 py-2 text-center text-xs text-orange-700">
-            저장하지 않고 브라우저를 닫거나 이전으로 이동하면 변경사항이 사라집니다.
+          <div className="border-t border-orange-100 bg-orange-50 px-3 py-2 text-center text-xs text-orange-700 sm:px-6">
+            저장하지 않고 브라우저를 닫거나 이전으로 이동하면 변경사항이
+            사라집니다.
           </div>
         )}
       </header>
 
       {/* Editor area */}
-      <main className="py-4 sm:py-10 px-2 sm:px-4 print:p-0 print:bg-white overflow-x-auto">
+      <main className="overflow-x-auto px-2 py-4 sm:px-4 sm:py-10 print:bg-white print:p-0">
         <ResumeEditor
           ref={editorRef}
           resumeId={resumeId}
@@ -350,37 +419,155 @@ export function ResumeEditorPage({ resumeId }: Props) {
         />
       </main>
 
-      {settingsOpen && <SettingsDialog onClose={() => setSettingsOpen(false)} />}
+      {settingsOpen && (
+        <SettingsDialog onClose={() => setSettingsOpen(false)} />
+      )}
+
+      {/* AI jobs modal */}
+      {aiJobPanelOpen && (
+        <div className="no-print fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center">
+          <div className="flex w-full max-w-lg flex-col rounded-t-2xl bg-white shadow-2xl sm:rounded-2xl">
+            {/* Header */}
+            <div className="flex shrink-0 items-center justify-between border-b border-gray-100 px-5 py-4">
+              <span className="text-base font-semibold text-gray-900">AI 작업 현황</span>
+              <div className="flex items-center gap-2">
+                {jobs.some((j) => j.status !== 'running') && (
+                  <button
+                    type="button"
+                    onClick={clearCompleted}
+                    className="text-xs text-gray-400 hover:text-gray-600"
+                  >
+                    완료 삭제
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setAiJobPanelOpen(false)}
+                  className="rounded p-1 text-lg leading-none text-gray-400 transition-colors hover:text-gray-600"
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+
+            {/* Job list */}
+            <ul className="flex-1 overflow-y-auto divide-y divide-gray-50 px-5 py-2">
+              {jobs.map((job) => (
+                <li key={job.id} className="flex items-center gap-3 py-3">
+                  {/* Status icon */}
+                  {job.status === 'running' && (
+                    <span className="h-5 w-5 shrink-0 animate-spin rounded-full border-2 border-violet-400 border-t-transparent" />
+                  )}
+                  {job.status === 'completed' && (
+                    <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-green-100 text-xs text-green-600">✓</span>
+                  )}
+                  {job.status === 'error' && (
+                    <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-red-100 text-xs text-red-500">✕</span>
+                  )}
+
+                  {/* Job info */}
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium text-gray-900">{job.sectionLabel}</p>
+                    <p className="text-xs text-gray-400">
+                      {job.mode === 'generate' ? 'AI 생성' : 'AI 수정'}
+                      {job.status === 'running' && ' · 진행 중...'}
+                      {job.status === 'error' && ' · 실패'}
+                    </p>
+                  </div>
+
+                  {/* Action button */}
+                  {job.status === 'completed' && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedJob(job);
+                        setAiJobPanelOpen(false);
+                      }}
+                      className="shrink-0 rounded-lg bg-gray-900 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-gray-700"
+                    >
+                      적용하기
+                    </button>
+                  )}
+                  {job.status === 'error' && (
+                    <button
+                      type="button"
+                      onClick={() => removeJob(job.id)}
+                      className="shrink-0 rounded-lg border border-gray-200 px-3 py-1.5 text-xs text-gray-500 transition-colors hover:bg-gray-50"
+                    >
+                      삭제
+                    </button>
+                  )}
+                </li>
+              ))}
+            </ul>
+
+            <div className="shrink-0 border-t border-gray-100 px-5 py-4">
+              <button
+                type="button"
+                onClick={() => setAiJobPanelOpen(false)}
+                className="w-full rounded-lg border border-gray-200 py-2.5 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-50"
+              >
+                닫기
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* AI panel reopened from navbar for a completed job */}
+      {selectedJob && (() => {
+        const section = sections.find((s) => s.id === selectedJob.sectionId);
+        if (!section) return null;
+        return (
+          <AIPanel
+            sectionId={selectedJob.sectionId}
+            mode={selectedJob.mode}
+            sectionType={selectedJob.sectionType}
+            currentContent={section.content}
+            preloadedResult={selectedJob.result}
+            onApply={(text) => {
+              const content = applyAIResult(selectedJob.sectionType, text);
+              if (content !== null) updateSectionContent(selectedJob.sectionId, content);
+              removeJob(selectedJob.id);
+              setSelectedJob(null);
+            }}
+            onClose={() => setSelectedJob(null)}
+          />
+        );
+      })()}
 
       {/* Leave confirmation modal */}
       {showLeaveConfirm && (
         <div className="no-print fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm mx-4 p-6 flex flex-col gap-4">
+          <div className="mx-4 flex w-full max-w-sm flex-col gap-4 rounded-2xl bg-white p-6 shadow-2xl">
             <div className="flex flex-col gap-1.5">
-              <h2 className="text-base font-semibold text-gray-900">저장하지 않고 나가시겠어요?</h2>
+              <h2 className="text-base font-semibold text-gray-900">
+                저장하지 않고 나가시겠어요?
+              </h2>
               <p className="text-sm text-gray-500">
-                저장되지 않은 변경사항이 있습니다. 지금 나가면 변경사항이 사라집니다.
+                저장되지 않은 변경사항이 있습니다. 지금 나가면 변경사항이
+                사라집니다.
               </p>
             </div>
             <div className="flex gap-2">
               <button
                 type="button"
                 onClick={continueEditing}
-                className="flex-1 border border-gray-200 text-gray-600 hover:bg-gray-50 text-sm font-medium py-2.5 rounded-lg transition-colors"
+                className="flex-1 rounded-lg border border-gray-200 py-2.5 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-50"
               >
                 계속 편집
               </button>
               <button
                 type="button"
                 onClick={saveAndLeave}
-                className="flex-1 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium py-2.5 rounded-lg transition-colors"
+                className="flex-1 rounded-lg bg-blue-600 py-2.5 text-sm font-medium text-white transition-colors hover:bg-blue-700"
               >
                 저장 후 나가기
               </button>
               <button
                 type="button"
                 onClick={leavePage}
-                className="flex-1 bg-red-50 hover:bg-red-100 text-red-600 text-sm font-medium py-2.5 rounded-lg transition-colors"
+                className="flex-1 rounded-lg bg-red-50 py-2.5 text-sm font-medium text-red-600 transition-colors hover:bg-red-100"
               >
                 저장 안 함
               </button>

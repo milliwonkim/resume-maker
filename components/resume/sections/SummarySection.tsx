@@ -15,24 +15,24 @@ export function SummarySection({ content, layout, onChange }: Props) {
 
   if (layout === 'layout2') {
     return (
-      <div className="border-l-4 border-blue-500 pl-4 py-1">
+      <div className="border-l-4 border-blue-500 py-1 pl-4">
         <RichTextField
           value={content.text}
           onChange={handleChange}
           placeholder="자기소개를 작성하세요..."
-          className="text-gray-700 leading-relaxed block w-full italic"
+          className="block w-full leading-relaxed text-gray-700 italic"
         />
       </div>
     );
   }
 
   return (
-    <div className="bg-gray-50 rounded-lg p-4">
+    <div className="rounded-lg bg-gray-50 p-4">
       <RichTextField
         value={content.text}
         onChange={handleChange}
         placeholder="자기소개를 작성하세요..."
-        className="text-gray-700 leading-relaxed block w-full"
+        className="block w-full leading-relaxed text-gray-700"
       />
     </div>
   );

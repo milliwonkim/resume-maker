@@ -16,7 +16,16 @@ interface Props {
 }
 
 export function SettingsDialog({ onClose }: Props) {
-  const { rules, setRules, geminiKey, setGeminiKey, notionPageUrl, setNotionPageUrl, autoSave, setAutoSave } = useAIStore();
+  const {
+    rules,
+    setRules,
+    geminiKey,
+    setGeminiKey,
+    notionPageUrl,
+    setNotionPageUrl,
+    autoSave,
+    setAutoSave,
+  } = useAIStore();
 
   const [tab, setTab] = useState<SettingsTab>('ai');
 
@@ -47,8 +56,12 @@ export function SettingsDialog({ onClose }: Props) {
 
   useEffect(() => {
     Promise.all([
-      fetch('/api/notion/token').then((r) => r.json() as Promise<{ connected: boolean }>),
-      fetch('/api/notion/database').then((r) => r.json() as Promise<{ databaseId: string | null }>),
+      fetch('/api/notion/token').then(
+        (r) => r.json() as Promise<{ connected: boolean }>
+      ),
+      fetch('/api/notion/database').then(
+        (r) => r.json() as Promise<{ databaseId: string | null }>
+      ),
     ])
       .then(([token, db]) => {
         if (token.connected) setNotionConnected(true);
@@ -63,8 +76,10 @@ export function SettingsDialog({ onClose }: Props) {
     const timer = setTimeout(async () => {
       setLocationSearching(true);
       try {
-        const res = await fetch(`/api/notion/search?q=${encodeURIComponent(locationQuery)}`);
-        const data = await res.json() as { pages?: PageItem[] };
+        const res = await fetch(
+          `/api/notion/search?q=${encodeURIComponent(locationQuery)}`
+        );
+        const data = (await res.json()) as { pages?: PageItem[] };
         setLocationPages(data.pages ?? []);
       } finally {
         setLocationSearching(false);
@@ -93,8 +108,11 @@ export function SettingsDialog({ onClose }: Props) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ token: tokenInput.trim() }),
       });
-      const data = await res.json() as { ok?: boolean; error?: string };
-      if (!res.ok || !data.ok) { setNotionError(data.error ?? '연결 실패'); return; }
+      const data = (await res.json()) as { ok?: boolean; error?: string };
+      if (!res.ok || !data.ok) {
+        setNotionError(data.error ?? '연결 실패');
+        return;
+      }
       setTokenInput('');
       setNotionConnected(true);
     } catch {
@@ -135,10 +153,13 @@ export function SettingsDialog({ onClose }: Props) {
         body: JSON.stringify(
           selectedLocationId
             ? { parentPageId: selectedLocationId }
-            : { parentPageUrl: trimmedLocationPageUrl },
+            : { parentPageUrl: trimmedLocationPageUrl }
         ),
       });
-      const data = await res.json() as { databaseId?: string; error?: string };
+      const data = (await res.json()) as {
+        databaseId?: string;
+        error?: string;
+      };
       if (!res.ok || !data.databaseId) {
         setLocationError(data.error ?? '저장 위치 변경 실패');
         return;
@@ -158,24 +179,30 @@ export function SettingsDialog({ onClose }: Props) {
 
   return (
     <div className="no-print fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-      <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl flex flex-col max-h-[85vh]">
+      <div className="flex max-h-[85vh] w-full max-w-md flex-col rounded-2xl bg-white shadow-2xl">
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 shrink-0">
+        <div className="flex shrink-0 items-center justify-between border-b border-gray-100 px-5 py-4">
           <span className="text-base font-semibold text-gray-900">설정</span>
-          <button type="button" onClick={onClose} className="text-gray-400 hover:text-gray-600 text-lg leading-none">
+          <button
+            type="button"
+            onClick={onClose}
+            className="text-lg leading-none text-gray-400 hover:text-gray-600"
+          >
             ✕
           </button>
         </div>
 
         {/* Tabs */}
-        <div className="flex border-b border-gray-100 shrink-0">
+        <div className="flex shrink-0 border-b border-gray-100">
           {(['ai', 'notion'] as SettingsTab[]).map((t) => (
             <button
               key={t}
               type="button"
               onClick={() => setTab(t)}
               className={`flex-1 py-2.5 text-sm font-medium transition-colors ${
-                tab === t ? 'text-violet-600 border-b-2 border-violet-500' : 'text-gray-500 hover:text-gray-700'
+                tab === t
+                  ? 'border-b-2 border-violet-500 text-violet-600'
+                  : 'text-gray-500 hover:text-gray-700'
               }`}
             >
               {t === 'ai' ? 'AI 설정' : 'Notion 연동'}
@@ -186,46 +213,50 @@ export function SettingsDialog({ onClose }: Props) {
         {/* AI tab */}
         {tab === 'ai' && (
           <>
-            <div className="flex-1 overflow-y-auto p-5 space-y-4">
+            <div className="flex-1 space-y-4 overflow-y-auto p-5">
               <div>
-                <label className="text-sm font-medium text-gray-700 block mb-2">
+                <label className="mb-2 block text-sm font-medium text-gray-700">
                   저장 방식
                 </label>
                 <div className="grid grid-cols-2 gap-2">
                   <button
                     type="button"
                     onClick={() => setAutoSaveLocal(true)}
-                    className={`text-left border rounded-lg px-3 py-2.5 transition-colors ${
+                    className={`rounded-lg border px-3 py-2.5 text-left transition-colors ${
                       autoSaveLocal
                         ? 'border-violet-300 bg-violet-50 text-violet-700'
                         : 'border-gray-200 text-gray-600 hover:bg-gray-50'
                     }`}
                   >
                     <span className="block text-sm font-medium">자동 저장</span>
-                    <span className="block text-xs mt-0.5 text-gray-400">수정하면 자동 저장</span>
+                    <span className="mt-0.5 block text-xs text-gray-400">
+                      수정하면 자동 저장
+                    </span>
                   </button>
                   <button
                     type="button"
                     onClick={() => setAutoSaveLocal(false)}
-                    className={`text-left border rounded-lg px-3 py-2.5 transition-colors ${
+                    className={`rounded-lg border px-3 py-2.5 text-left transition-colors ${
                       !autoSaveLocal
                         ? 'border-violet-300 bg-violet-50 text-violet-700'
                         : 'border-gray-200 text-gray-600 hover:bg-gray-50'
                     }`}
                   >
                     <span className="block text-sm font-medium">수동 저장</span>
-                    <span className="block text-xs mt-0.5 text-gray-400">저장 버튼을 눌러야 반영</span>
+                    <span className="mt-0.5 block text-xs text-gray-400">
+                      저장 버튼을 눌러야 반영
+                    </span>
                   </button>
                 </div>
                 {!autoSaveLocal && (
-                  <p className="text-xs text-orange-500 mt-2">
+                  <p className="mt-2 text-xs text-orange-500">
                     저장하지 않고 닫거나 이동하면 변경사항이 사라집니다.
                   </p>
                 )}
               </div>
 
               <div>
-                <label className="text-sm font-medium text-gray-700 block mb-1.5">
+                <label className="mb-1.5 block text-sm font-medium text-gray-700">
                   Gemini API 키
                 </label>
                 <input
@@ -233,29 +264,39 @@ export function SettingsDialog({ onClose }: Props) {
                   value={geminiKeyLocal}
                   onChange={(e) => setGeminiKeyLocal(e.target.value)}
                   placeholder="AIza... (없으면 서버 환경변수 사용)"
-                  className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-violet-300 font-mono"
+                  className="w-full rounded-lg border border-gray-200 px-3 py-2 font-mono text-sm focus:ring-2 focus:ring-violet-300 focus:outline-none"
                 />
-                <p className="text-xs text-gray-400 mt-1">이 기기 로컬에만 저장됩니다.</p>
+                <p className="mt-1 text-xs text-gray-400">
+                  이 기기 로컬에만 저장됩니다.
+                </p>
               </div>
 
               <div>
-                <label className="text-sm font-medium text-gray-700 block mb-1.5">
+                <label className="mb-1.5 block text-sm font-medium text-gray-700">
                   AI 규칙
                 </label>
                 <textarea
                   value={rulesLocal}
                   onChange={(e) => setRulesLocal(e.target.value)}
                   rows={10}
-                  placeholder={"- 한국어로 작성할 것\n- 전문적인 어조 유지"}
-                  className="w-full text-sm border border-gray-200 rounded-lg p-3 resize-none focus:outline-none focus:ring-2 focus:ring-violet-300 font-mono"
+                  placeholder={'- 한국어로 작성할 것\n- 전문적인 어조 유지'}
+                  className="w-full resize-none rounded-lg border border-gray-200 p-3 font-mono text-sm focus:ring-2 focus:ring-violet-300 focus:outline-none"
                 />
               </div>
             </div>
-            <div className="px-5 py-4 border-t border-gray-100 flex gap-2 shrink-0">
-              <button type="button" onClick={onClose} className="flex-1 border border-gray-200 text-gray-600 hover:bg-gray-50 text-sm font-medium py-2.5 rounded-lg transition-colors">
+            <div className="flex shrink-0 gap-2 border-t border-gray-100 px-5 py-4">
+              <button
+                type="button"
+                onClick={onClose}
+                className="flex-1 rounded-lg border border-gray-200 py-2.5 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-50"
+              >
                 취소
               </button>
-              <button type="button" onClick={handleSaveAI} className="flex-1 bg-violet-600 hover:bg-violet-700 text-white text-sm font-medium py-2.5 rounded-lg transition-colors">
+              <button
+                type="button"
+                onClick={handleSaveAI}
+                className="flex-1 rounded-lg bg-violet-600 py-2.5 text-sm font-medium text-white transition-colors hover:bg-violet-700"
+              >
                 저장
               </button>
             </div>
@@ -265,25 +306,29 @@ export function SettingsDialog({ onClose }: Props) {
         {/* Notion tab */}
         {tab === 'notion' && (
           <>
-            <div className="flex-1 overflow-y-auto p-5 space-y-5">
+            <div className="flex-1 space-y-5 overflow-y-auto p-5">
               {/* Token section */}
               <div>
-                <div className="flex items-center justify-between mb-1.5">
-                  <label className="text-sm font-medium text-gray-700">Notion 계정 연결</label>
+                <div className="mb-1.5 flex items-center justify-between">
+                  <label className="text-sm font-medium text-gray-700">
+                    Notion 계정 연결
+                  </label>
                   {notionConnected && (
-                    <span className="text-xs text-green-600 bg-green-50 px-2 py-0.5 rounded-full">연결됨</span>
+                    <span className="rounded-full bg-green-50 px-2 py-0.5 text-xs text-green-600">
+                      연결됨
+                    </span>
                   )}
                 </div>
 
                 {notionChecking ? (
                   <div className="flex justify-center py-4">
-                    <span className="w-4 h-4 border-2 border-violet-400 border-t-transparent rounded-full animate-spin" />
+                    <span className="h-4 w-4 animate-spin rounded-full border-2 border-violet-400 border-t-transparent" />
                   </div>
                 ) : notionConnected ? (
                   <button
                     type="button"
                     onClick={handleNotionDisconnect}
-                    className="text-sm text-red-500 hover:text-red-700 border border-red-200 hover:border-red-300 px-3 py-1.5 rounded-lg transition-colors"
+                    className="rounded-lg border border-red-200 px-3 py-1.5 text-sm text-red-500 transition-colors hover:border-red-300 hover:text-red-700"
                   >
                     연결 해제
                   </button>
@@ -296,20 +341,29 @@ export function SettingsDialog({ onClose }: Props) {
                       type="password"
                       value={tokenInput}
                       onChange={(e) => setTokenInput(e.target.value)}
-                      onKeyDown={(e) => e.key === 'Enter' && handleNotionConnect()}
+                      onKeyDown={(e) =>
+                        e.key === 'Enter' && handleNotionConnect()
+                      }
                       placeholder="secret_..."
-                      className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-violet-300 font-mono"
+                      className="w-full rounded-lg border border-gray-200 px-3 py-2 font-mono text-sm focus:ring-2 focus:ring-violet-300 focus:outline-none"
                     />
-                    {notionError && <p className="text-xs text-red-500">{notionError}</p>}
+                    {notionError && (
+                      <p className="text-xs text-red-500">{notionError}</p>
+                    )}
                     <button
                       type="button"
                       onClick={handleNotionConnect}
                       disabled={notionLoading}
-                      className="w-full bg-gray-900 hover:bg-gray-700 disabled:bg-gray-300 text-white text-sm font-medium py-2 rounded-lg transition-colors flex items-center justify-center gap-2"
+                      className="flex w-full items-center justify-center gap-2 rounded-lg bg-gray-900 py-2 text-sm font-medium text-white transition-colors hover:bg-gray-700 disabled:bg-gray-300"
                     >
                       {notionLoading ? (
-                        <><span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />연결 중...</>
-                      ) : '연결하기'}
+                        <>
+                          <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                          연결 중...
+                        </>
+                      ) : (
+                        '연결하기'
+                      )}
                     </button>
                   </div>
                 )}
@@ -317,11 +371,12 @@ export function SettingsDialog({ onClose }: Props) {
 
               {/* Page URL section */}
               <div>
-                <label className="text-sm font-medium text-gray-700 block mb-1.5">
+                <label className="mb-1.5 block text-sm font-medium text-gray-700">
                   기본 참고 페이지
                 </label>
-                <p className="text-xs text-gray-400 mb-2">
-                  저장하면 AI 패널에서 자동으로 불러옵니다. 저장 시 페이지가 새로고침됩니다.
+                <p className="mb-2 text-xs text-gray-400">
+                  저장하면 AI 패널에서 자동으로 불러옵니다. 저장 시 페이지가
+                  새로고침됩니다.
                 </p>
                 <div className="relative">
                   <input
@@ -329,20 +384,20 @@ export function SettingsDialog({ onClose }: Props) {
                     value={pageUrlLocal}
                     onChange={(e) => setPageUrlLocal(e.target.value)}
                     placeholder="https://www.notion.so/..."
-                    className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-violet-300 pr-14"
+                    className="w-full rounded-lg border border-gray-200 px-3 py-2 pr-14 text-sm focus:ring-2 focus:ring-violet-300 focus:outline-none"
                   />
                   {pageUrlLocal && (
                     <button
                       type="button"
                       onClick={handleClearPageUrl}
-                      className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-gray-400 hover:text-red-500 bg-gray-100 hover:bg-red-50 px-2 py-0.5 rounded transition-colors"
+                      className="absolute top-1/2 right-2 -translate-y-1/2 rounded bg-gray-100 px-2 py-0.5 text-xs text-gray-400 transition-colors hover:bg-red-50 hover:text-red-500"
                     >
                       해제
                     </button>
                   )}
                 </div>
                 {notionPageUrl && pageUrlLocal === notionPageUrl && (
-                  <p className="text-xs text-green-600 mt-1 flex items-center gap-1">
+                  <p className="mt-1 flex items-center gap-1 text-xs text-green-600">
                     <span>✓</span> 저장된 링크
                   </p>
                 )}
@@ -351,23 +406,30 @@ export function SettingsDialog({ onClose }: Props) {
               {/* Storage location section */}
               {notionConnected && (
                 <div>
-                  <div className="flex items-center justify-between mb-1.5">
-                    <label className="text-sm font-medium text-gray-700">이력서 저장 위치</label>
+                  <div className="mb-1.5 flex items-center justify-between">
+                    <label className="text-sm font-medium text-gray-700">
+                      이력서 저장 위치
+                    </label>
                     {databaseId ? (
-                      <span className="text-xs text-green-600 bg-green-50 px-2 py-0.5 rounded-full">저장소 연결됨</span>
+                      <span className="rounded-full bg-green-50 px-2 py-0.5 text-xs text-green-600">
+                        저장소 연결됨
+                      </span>
                     ) : (
-                      <span className="text-xs text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full">미설정</span>
+                      <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs text-amber-600">
+                        미설정
+                      </span>
                     )}
                   </div>
-                  <p className="text-xs text-gray-400 mb-2">
-                    이력서 저장소 데이터베이스가 생성될 Notion 페이지를 검색하거나 링크로 지정합니다.
+                  <p className="mb-2 text-xs text-gray-400">
+                    이력서 저장소 데이터베이스가 생성될 Notion 페이지를
+                    검색하거나 링크로 지정합니다.
                   </p>
 
                   {!showLocationPicker ? (
                     <button
                       type="button"
                       onClick={() => setShowLocationPicker(true)}
-                      className="text-sm border border-gray-200 text-gray-600 hover:bg-gray-50 px-3 py-1.5 rounded-lg transition-colors"
+                      className="rounded-lg border border-gray-200 px-3 py-1.5 text-sm text-gray-600 transition-colors hover:bg-gray-50"
                     >
                       {databaseId ? '저장 위치 변경' : '저장 위치 선택'}
                     </button>
@@ -378,14 +440,18 @@ export function SettingsDialog({ onClose }: Props) {
                         value={locationQuery}
                         onChange={(e) => setLocationQuery(e.target.value)}
                         placeholder="페이지 검색..."
-                        className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-violet-300"
+                        className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:ring-2 focus:ring-violet-300 focus:outline-none"
                         autoFocus
                       />
-                      <div className="border border-gray-100 rounded-lg overflow-hidden max-h-40 overflow-y-auto">
+                      <div className="max-h-40 overflow-hidden overflow-y-auto rounded-lg border border-gray-100">
                         {locationSearching ? (
-                          <div className="p-3 text-center text-xs text-gray-400">검색 중...</div>
+                          <div className="p-3 text-center text-xs text-gray-400">
+                            검색 중...
+                          </div>
                         ) : locationPages.length === 0 ? (
-                          <div className="p-3 text-center text-xs text-gray-400">페이지를 검색해주세요</div>
+                          <div className="p-3 text-center text-xs text-gray-400">
+                            페이지를 검색해주세요
+                          </div>
                         ) : (
                           locationPages.map((page) => (
                             <button
@@ -396,13 +462,21 @@ export function SettingsDialog({ onClose }: Props) {
                                 setSelectedLocationTitle(page.title);
                                 setLocationPageUrl('');
                               }}
-                              className={`w-full text-left px-3 py-2.5 text-sm border-b border-gray-50 last:border-0 hover:bg-violet-50 transition-colors flex items-center gap-2 ${
-                                selectedLocationId === page.id ? 'bg-violet-50 text-violet-700' : 'text-gray-700'
+                              className={`flex w-full items-center gap-2 border-b border-gray-50 px-3 py-2.5 text-left text-sm transition-colors last:border-0 hover:bg-violet-50 ${
+                                selectedLocationId === page.id
+                                  ? 'bg-violet-50 text-violet-700'
+                                  : 'text-gray-700'
                               }`}
                             >
                               <span>📁</span>
-                              <span className="flex-1 truncate">{page.title}</span>
-                              {selectedLocationId === page.id && <span className="text-violet-600 text-xs">선택됨</span>}
+                              <span className="flex-1 truncate">
+                                {page.title}
+                              </span>
+                              {selectedLocationId === page.id && (
+                                <span className="text-xs text-violet-600">
+                                  선택됨
+                                </span>
+                              )}
                             </button>
                           ))
                         )}
@@ -421,12 +495,16 @@ export function SettingsDialog({ onClose }: Props) {
                           setSelectedLocationTitle('');
                         }}
                         placeholder="Notion 페이지 링크 붙여넣기"
-                        className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-violet-300"
+                        className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:ring-2 focus:ring-violet-300 focus:outline-none"
                       />
                       {selectedLocationTitle && (
-                        <p className="text-xs text-violet-600">✓ {selectedLocationTitle} 선택됨</p>
+                        <p className="text-xs text-violet-600">
+                          ✓ {selectedLocationTitle} 선택됨
+                        </p>
                       )}
-                      {locationError && <p className="text-xs text-red-500">{locationError}</p>}
+                      {locationError && (
+                        <p className="text-xs text-red-500">{locationError}</p>
+                      )}
                       <div className="flex gap-2">
                         <button
                           type="button"
@@ -438,19 +516,27 @@ export function SettingsDialog({ onClose }: Props) {
                             setLocationPageUrl('');
                             setLocationError('');
                           }}
-                          className="flex-1 border border-gray-200 text-gray-600 hover:bg-gray-50 text-sm py-2 rounded-lg transition-colors"
+                          className="flex-1 rounded-lg border border-gray-200 py-2 text-sm text-gray-600 transition-colors hover:bg-gray-50"
                         >
                           취소
                         </button>
                         <button
                           type="button"
                           onClick={handleChangeLocation}
-                          disabled={(!selectedLocationId && !locationPageUrl.trim()) || locationLoading}
-                          className="flex-1 bg-violet-600 hover:bg-violet-700 disabled:bg-violet-300 text-white text-sm py-2 rounded-lg transition-colors flex items-center justify-center gap-1.5"
+                          disabled={
+                            (!selectedLocationId && !locationPageUrl.trim()) ||
+                            locationLoading
+                          }
+                          className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-violet-600 py-2 text-sm text-white transition-colors hover:bg-violet-700 disabled:bg-violet-300"
                         >
                           {locationLoading ? (
-                            <><span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />확인 중...</>
-                          ) : '확인 후 저장하기'}
+                            <>
+                              <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                              확인 중...
+                            </>
+                          ) : (
+                            '확인 후 저장하기'
+                          )}
                         </button>
                       </div>
                     </div>
@@ -458,14 +544,18 @@ export function SettingsDialog({ onClose }: Props) {
                 </div>
               )}
             </div>
-            <div className="px-5 py-4 border-t border-gray-100 flex gap-2 shrink-0">
-              <button type="button" onClick={onClose} className="flex-1 border border-gray-200 text-gray-600 hover:bg-gray-50 text-sm font-medium py-2.5 rounded-lg transition-colors">
+            <div className="flex shrink-0 gap-2 border-t border-gray-100 px-5 py-4">
+              <button
+                type="button"
+                onClick={onClose}
+                className="flex-1 rounded-lg border border-gray-200 py-2.5 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-50"
+              >
                 취소
               </button>
               <button
                 type="button"
                 onClick={handleSaveNotion}
-                className="flex-1 bg-violet-600 hover:bg-violet-700 text-white text-sm font-medium py-2.5 rounded-lg transition-colors"
+                className="flex-1 rounded-lg bg-violet-600 py-2.5 text-sm font-medium text-white transition-colors hover:bg-violet-700"
               >
                 저장 및 새로고침
               </button>

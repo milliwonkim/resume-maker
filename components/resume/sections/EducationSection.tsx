@@ -1,6 +1,12 @@
 'use client';
 
-import type { EducationContent, EducationItem, GpaScale, HighSchoolCategory, SchoolType } from '@/lib/types';
+import type {
+  EducationContent,
+  EducationItem,
+  GpaScale,
+  HighSchoolCategory,
+  SchoolType,
+} from '@/lib/types';
 import { HIGH_SCHOOL_CATEGORY_OPTIONS, SCHOOL_TYPE_LABELS } from '@/lib/types';
 import { EditableField } from '../EditableField';
 
@@ -39,7 +45,7 @@ function GpaScaleSelect({
     <select
       value={value ?? '4.5'}
       onChange={(e) => onChange(e.target.value as GpaScale)}
-      className="text-xs text-gray-500 border border-gray-200 bg-white cursor-pointer focus:outline-none focus:ring-1 focus:ring-blue-300 rounded px-1.5 py-0.5"
+      className="cursor-pointer rounded border border-gray-200 bg-white px-1.5 py-0.5 text-xs text-gray-500 focus:ring-1 focus:ring-blue-300 focus:outline-none"
     >
       {GPA_SCALES.map((scale) => (
         <option key={scale} value={scale}>
@@ -61,7 +67,7 @@ function SchoolTypeSelect({
     <select
       value={value}
       onChange={(e) => onChange(e.target.value as SchoolType)}
-      className="text-xs text-gray-500 border border-gray-200 bg-white cursor-pointer focus:outline-none focus:ring-1 focus:ring-blue-300 rounded px-1.5 py-0.5"
+      className="cursor-pointer rounded border border-gray-200 bg-white px-1.5 py-0.5 text-xs text-gray-500 focus:ring-1 focus:ring-blue-300 focus:outline-none"
     >
       {SCHOOL_TYPES.map((type) => (
         <option key={type} value={type}>
@@ -81,7 +87,14 @@ function makeNewItem(schoolType: SchoolType): EducationItem {
     endDate: '20XX.02',
   };
   if (schoolType === 'university') {
-    return { ...base, degree: '학사', field: '전공', additionalMajors: [], gpa: '', gpaScale: '4.5' };
+    return {
+      ...base,
+      degree: '학사',
+      field: '전공',
+      additionalMajors: [],
+      gpa: '',
+      gpaScale: '4.5',
+    };
   }
   if (schoolType === 'highschool') {
     return { ...base, highSchoolCategory: DEFAULT_HIGH_SCHOOL_CATEGORY };
@@ -151,18 +164,20 @@ export function EducationSection({ content, layout, onChange }: Props) {
 
   const removeAdditionalMajor = (item: EducationItem, majorId: string) => {
     update(item.id, {
-      additionalMajors: (item.additionalMajors ?? []).filter((major) => major.id !== majorId),
+      additionalMajors: (item.additionalMajors ?? []).filter(
+        (major) => major.id !== majorId
+      ),
     });
   };
 
   const AddButtons = () => (
-    <div className="flex gap-1 flex-wrap">
+    <div className="flex flex-wrap gap-1">
       {SCHOOL_TYPES.map((type) => (
         <button
           key={type}
           type="button"
           onClick={() => add(type)}
-          className="text-xs text-blue-500 hover:text-blue-700 px-2 py-0.5 border border-blue-200 rounded"
+          className="rounded border border-blue-200 px-2 py-0.5 text-xs text-blue-500 hover:text-blue-700"
         >
           + {SCHOOL_TYPE_LABELS[type]}
         </button>
@@ -172,7 +187,9 @@ export function EducationSection({ content, layout, onChange }: Props) {
 
   const HighSchoolCategorySelect = ({ item }: { item: EducationItem }) => {
     const value = item.highSchoolCategory ?? '';
-    const selectValue = HIGH_SCHOOL_CATEGORY_OPTIONS.includes(value as HighSchoolCategory)
+    const selectValue = HIGH_SCHOOL_CATEGORY_OPTIONS.includes(
+      value as HighSchoolCategory
+    )
       ? value
       : HIGH_SCHOOL_CUSTOM_OPTION;
 
@@ -183,7 +200,7 @@ export function EducationSection({ content, layout, onChange }: Props) {
           if (e.target.value === HIGH_SCHOOL_CUSTOM_OPTION) return;
           update(item.id, { highSchoolCategory: e.target.value });
         }}
-        className="text-xs text-gray-500 border border-gray-200 bg-white cursor-pointer focus:outline-none focus:ring-1 focus:ring-blue-300 rounded px-1.5 py-0.5"
+        className="cursor-pointer rounded border border-gray-200 bg-white px-1.5 py-0.5 text-xs text-gray-500 focus:ring-1 focus:ring-blue-300 focus:outline-none"
         aria-label="고등학교 계열 선택"
       >
         {HIGH_SCHOOL_CATEGORY_OPTIONS.map((category) => (
@@ -197,15 +214,27 @@ export function EducationSection({ content, layout, onChange }: Props) {
   };
 
   const ItemActions = ({ item }: { item: EducationItem }) => (
-    <div className="no-print resume-action-buttons gap-1 flex-wrap">
-      <SchoolTypeSelect value={item.schoolType} onChange={(v) => handleSchoolTypeChange(item.id, v)} />
+    <div className="no-print resume-action-buttons flex-wrap gap-1">
+      <SchoolTypeSelect
+        value={item.schoolType}
+        onChange={(v) => handleSchoolTypeChange(item.id, v)}
+      />
       {isHighSchool(item) && <HighSchoolCategorySelect item={item} />}
       {isUniversity(item) && item.gpa !== undefined && (
-        <GpaScaleSelect value={item.gpaScale} onChange={(v) => update(item.id, { gpaScale: v })} />
+        <GpaScaleSelect
+          value={item.gpaScale}
+          onChange={(v) => update(item.id, { gpaScale: v })}
+        />
       )}
       <AddButtons />
       {content.items.length > 1 && (
-        <button type="button" onClick={() => remove(item.id)} className="text-xs text-red-400 hover:text-red-600 px-2 py-0.5 border border-red-200 rounded">삭제</button>
+        <button
+          type="button"
+          onClick={() => remove(item.id)}
+          className="rounded border border-red-200 px-2 py-0.5 text-xs text-red-400 hover:text-red-600"
+        >
+          삭제
+        </button>
       )}
     </div>
   );
@@ -215,14 +244,39 @@ export function EducationSection({ content, layout, onChange }: Props) {
       {(item.additionalMajors ?? []).map((major) => (
         <span key={major.id} className="inline-flex items-center gap-1">
           <span className="text-gray-300">|</span>
-          <EditableField value={major.label} onChange={(v) => updateAdditionalMajor(item, major.id, { label: v })} tag="span" className="text-gray-500" placeholder="구분" />
-          <EditableField value={major.field} onChange={(v) => updateAdditionalMajor(item, major.id, { field: v })} tag="span" className="text-blue-600" placeholder="전공명" />
-          <button type="button" onClick={() => removeAdditionalMajor(item, major.id)} className="no-print resume-action-button text-xs text-red-400 hover:text-red-600" aria-label={`${major.label} 삭제`}>
+          <EditableField
+            value={major.label}
+            onChange={(v) =>
+              updateAdditionalMajor(item, major.id, { label: v })
+            }
+            tag="span"
+            className="text-gray-500"
+            placeholder="구분"
+          />
+          <EditableField
+            value={major.field}
+            onChange={(v) =>
+              updateAdditionalMajor(item, major.id, { field: v })
+            }
+            tag="span"
+            className="text-blue-600"
+            placeholder="전공명"
+          />
+          <button
+            type="button"
+            onClick={() => removeAdditionalMajor(item, major.id)}
+            className="no-print resume-action-button text-xs text-red-400 hover:text-red-600"
+            aria-label={`${major.label} 삭제`}
+          >
             삭제
           </button>
         </span>
       ))}
-      <button type="button" onClick={() => addAdditionalMajor(item)} className="no-print resume-action-button text-xs text-blue-500 hover:text-blue-700 px-1.5 py-0.5 border border-blue-200 rounded">
+      <button
+        type="button"
+        onClick={() => addAdditionalMajor(item)}
+        className="no-print resume-action-button rounded border border-blue-200 px-1.5 py-0.5 text-xs text-blue-500 hover:text-blue-700"
+      >
         + 추가 전공
       </button>
     </>
@@ -232,15 +286,40 @@ export function EducationSection({ content, layout, onChange }: Props) {
     <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
       {(item.additionalMajors ?? []).map((major) => (
         <span key={major.id} className="inline-flex items-center gap-1">
-          <EditableField value={major.label} onChange={(v) => updateAdditionalMajor(item, major.id, { label: v })} tag="span" className="text-gray-500" placeholder="구분" />
+          <EditableField
+            value={major.label}
+            onChange={(v) =>
+              updateAdditionalMajor(item, major.id, { label: v })
+            }
+            tag="span"
+            className="text-gray-500"
+            placeholder="구분"
+          />
           <span className="text-gray-300">/</span>
-          <EditableField value={major.field} onChange={(v) => updateAdditionalMajor(item, major.id, { field: v })} tag="span" className="text-blue-600" placeholder="전공명" />
-          <button type="button" onClick={() => removeAdditionalMajor(item, major.id)} className="no-print resume-action-button text-xs text-red-400 hover:text-red-600" aria-label={`${major.label} 삭제`}>
+          <EditableField
+            value={major.field}
+            onChange={(v) =>
+              updateAdditionalMajor(item, major.id, { field: v })
+            }
+            tag="span"
+            className="text-blue-600"
+            placeholder="전공명"
+          />
+          <button
+            type="button"
+            onClick={() => removeAdditionalMajor(item, major.id)}
+            className="no-print resume-action-button text-xs text-red-400 hover:text-red-600"
+            aria-label={`${major.label} 삭제`}
+          >
             삭제
           </button>
         </span>
       ))}
-      <button type="button" onClick={() => addAdditionalMajor(item)} className="no-print resume-action-button text-xs text-blue-500 hover:text-blue-700 px-1.5 py-0.5 border border-blue-200 rounded">
+      <button
+        type="button"
+        onClick={() => addAdditionalMajor(item)}
+        className="no-print resume-action-button rounded border border-blue-200 px-1.5 py-0.5 text-xs text-blue-500 hover:text-blue-700"
+      >
         + 추가 전공
       </button>
     </div>
@@ -250,21 +329,49 @@ export function EducationSection({ content, layout, onChange }: Props) {
     return (
       <div className="space-y-2">
         {content.items.map((item) => (
-          <div key={item.id} className="resume-action-host flex items-center justify-between flex-wrap gap-2 py-2 border-b border-gray-100 last:border-0 focus:outline-none" tabIndex={0}>
-            <div className="flex items-center gap-3 flex-wrap">
-              <EditableField value={item.school} onChange={(v) => update(item.id, { school: v })} tag="span" className="font-semibold text-gray-900" placeholder="학교명" />
+          <div
+            key={item.id}
+            className="resume-action-host flex flex-wrap items-center justify-between gap-2 border-b border-gray-100 py-2 last:border-0 focus:outline-none"
+            tabIndex={0}
+          >
+            <div className="flex flex-wrap items-center gap-3">
+              <EditableField
+                value={item.school}
+                onChange={(v) => update(item.id, { school: v })}
+                tag="span"
+                className="font-semibold text-gray-900"
+                placeholder="학교명"
+              />
               {isUniversity(item) && (
                 <>
                   <span className="text-gray-300">|</span>
-                  <EditableField value={item.degree ?? ''} onChange={(v) => update(item.id, { degree: v })} tag="span" className="text-gray-700" placeholder="학위" />
-                  <EditableField value={item.field ?? ''} onChange={(v) => update(item.id, { field: v })} tag="span" className="text-blue-600" placeholder="전공" />
+                  <EditableField
+                    value={item.degree ?? ''}
+                    onChange={(v) => update(item.id, { degree: v })}
+                    tag="span"
+                    className="text-gray-700"
+                    placeholder="학위"
+                  />
+                  <EditableField
+                    value={item.field ?? ''}
+                    onChange={(v) => update(item.id, { field: v })}
+                    tag="span"
+                    className="text-blue-600"
+                    placeholder="전공"
+                  />
                   <AdditionalMajorsInline item={item} />
                   {item.gpa !== undefined && (
                     <>
                       <span className="text-gray-300">|</span>
                       <span className="flex items-center gap-1 text-sm text-gray-500">
                         <span className="text-xs text-gray-400">학점</span>
-                        <EditableField value={item.gpa} onChange={(v) => update(item.id, { gpa: v })} tag="span" className="text-sm text-gray-500" placeholder="0.0" />
+                        <EditableField
+                          value={item.gpa}
+                          onChange={(v) => update(item.id, { gpa: v })}
+                          tag="span"
+                          className="text-sm text-gray-500"
+                          placeholder="0.0"
+                        />
                         <span className="text-gray-300">/</span>
                         <span>{item.gpaScale ?? '4.5'}</span>
                       </span>
@@ -275,14 +382,30 @@ export function EducationSection({ content, layout, onChange }: Props) {
               {isHighSchool(item) && (
                 <>
                   <span className="text-gray-300">|</span>
-                  <EditableField value={item.highSchoolCategory ?? ''} onChange={(v) => update(item.id, { highSchoolCategory: v })} tag="span" className="text-blue-600" placeholder="계열/유형" />
+                  <EditableField
+                    value={item.highSchoolCategory ?? ''}
+                    onChange={(v) => update(item.id, { highSchoolCategory: v })}
+                    tag="span"
+                    className="text-blue-600"
+                    placeholder="계열/유형"
+                  />
                 </>
               )}
             </div>
             <span className="text-sm text-gray-500">
-              <EditableField value={item.startDate} onChange={(v) => update(item.id, { startDate: v })} tag="span" placeholder="입학" />
+              <EditableField
+                value={item.startDate}
+                onChange={(v) => update(item.id, { startDate: v })}
+                tag="span"
+                placeholder="입학"
+              />
               <span className="mx-1">–</span>
-              <EditableField value={item.endDate} onChange={(v) => update(item.id, { endDate: v })} tag="span" placeholder="졸업" />
+              <EditableField
+                value={item.endDate}
+                onChange={(v) => update(item.id, { endDate: v })}
+                tag="span"
+                placeholder="졸업"
+              />
             </span>
             <ItemActions item={item} />
           </div>
@@ -294,36 +417,80 @@ export function EducationSection({ content, layout, onChange }: Props) {
   return (
     <div className="space-y-4">
       {content.items.map((item) => (
-        <div key={item.id} className="resume-action-host focus:outline-none" tabIndex={0}>
-          <div className="flex items-baseline justify-between flex-wrap gap-2">
-            <div className="flex items-baseline gap-2 flex-wrap">
-              <EditableField value={item.school} onChange={(v) => update(item.id, { school: v })} tag="span" className="font-bold text-gray-900 text-lg" placeholder="학교명" />
+        <div
+          key={item.id}
+          className="resume-action-host focus:outline-none"
+          tabIndex={0}
+        >
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <div className="flex flex-wrap items-baseline gap-2">
+              <EditableField
+                value={item.school}
+                onChange={(v) => update(item.id, { school: v })}
+                tag="span"
+                className="text-lg font-bold text-gray-900"
+                placeholder="학교명"
+              />
               {isUniversity(item) && (
                 <>
                   <span className="text-gray-400">·</span>
-                  <EditableField value={item.degree ?? ''} onChange={(v) => update(item.id, { degree: v })} tag="span" className="text-gray-700" placeholder="학위" />
+                  <EditableField
+                    value={item.degree ?? ''}
+                    onChange={(v) => update(item.id, { degree: v })}
+                    tag="span"
+                    className="text-gray-700"
+                    placeholder="학위"
+                  />
                   <span className="text-gray-400">/</span>
-                  <EditableField value={item.field ?? ''} onChange={(v) => update(item.id, { field: v })} tag="span" className="text-blue-600" placeholder="전공" />
+                  <EditableField
+                    value={item.field ?? ''}
+                    onChange={(v) => update(item.id, { field: v })}
+                    tag="span"
+                    className="text-blue-600"
+                    placeholder="전공"
+                  />
                 </>
               )}
               {isHighSchool(item) && (
                 <>
                   <span className="text-gray-400">·</span>
-                  <EditableField value={item.highSchoolCategory ?? ''} onChange={(v) => update(item.id, { highSchoolCategory: v })} tag="span" className="text-blue-600" placeholder="계열/유형" />
+                  <EditableField
+                    value={item.highSchoolCategory ?? ''}
+                    onChange={(v) => update(item.id, { highSchoolCategory: v })}
+                    tag="span"
+                    className="text-blue-600"
+                    placeholder="계열/유형"
+                  />
                 </>
               )}
             </div>
             <span className="text-sm text-gray-500">
-              <EditableField value={item.startDate} onChange={(v) => update(item.id, { startDate: v })} tag="span" placeholder="입학" />
+              <EditableField
+                value={item.startDate}
+                onChange={(v) => update(item.id, { startDate: v })}
+                tag="span"
+                placeholder="입학"
+              />
               <span className="mx-1">–</span>
-              <EditableField value={item.endDate} onChange={(v) => update(item.id, { endDate: v })} tag="span" placeholder="졸업" />
+              <EditableField
+                value={item.endDate}
+                onChange={(v) => update(item.id, { endDate: v })}
+                tag="span"
+                placeholder="졸업"
+              />
             </span>
           </div>
           {isUniversity(item) && <AdditionalMajorsBlock item={item} />}
           {isUniversity(item) && item.gpa !== undefined && (
-            <div className="flex items-center gap-1 mt-1 text-sm text-gray-500">
+            <div className="mt-1 flex items-center gap-1 text-sm text-gray-500">
               <span className="text-xs text-gray-400">학점</span>
-              <EditableField value={item.gpa} onChange={(v) => update(item.id, { gpa: v })} tag="span" className="text-sm text-gray-500" placeholder="0.0" />
+              <EditableField
+                value={item.gpa}
+                onChange={(v) => update(item.id, { gpa: v })}
+                tag="span"
+                className="text-sm text-gray-500"
+                placeholder="0.0"
+              />
               <span className="text-gray-300">/</span>
               <span>{item.gpaScale ?? '4.5'}</span>
             </div>

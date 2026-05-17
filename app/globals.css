@@ -1,4 +1,4 @@
-@import "tailwindcss";
+@import 'tailwindcss';
 
 :root {
   --background: #ffffff;
@@ -129,6 +129,6 @@ body {
   }
 
   .rich-text-field p.is-editor-empty:first-child::before {
-    content: "" !important;
+    content: '' !important;
   }
 }
