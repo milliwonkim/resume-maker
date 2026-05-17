@@ -6,10 +6,12 @@ import { persist } from 'zustand/middleware';
 interface AIStore {
   rules: string;
   geminiKey: string;
+  geminiModel: string;
   notionPageUrl: string;
   autoSave: boolean;
   setRules: (rules: string) => void;
   setGeminiKey: (key: string) => void;
+  setGeminiModel: (model: string) => void;
   setNotionPageUrl: (url: string) => void;
   setAutoSave: (v: boolean) => void;
 }
@@ -25,10 +27,12 @@ export const useAIStore = create<AIStore>()(
 - 수치화 방법이나 기준도 함께 기재 (예: "A/B 테스트 기준", "Google Analytics 측정값")
 - "최첨단", "혁신적인", "최신" 등 도구나 기술을 꾸미는 불필요한 수식어 사용 금지`,
       geminiKey: '',
+      geminiModel: 'gemini-2.5-flash',
       notionPageUrl: '',
       autoSave: true,
       setRules: (rules) => set({ rules }),
       setGeminiKey: (geminiKey) => set({ geminiKey }),
+      setGeminiModel: (geminiModel) => set({ geminiModel }),
       setNotionPageUrl: (notionPageUrl) => set({ notionPageUrl }),
       setAutoSave: (autoSave) => set({ autoSave }),
     }),

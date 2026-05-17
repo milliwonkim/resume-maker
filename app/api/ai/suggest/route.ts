@@ -6,7 +6,7 @@ import { SECTION_LABELS } from '@/lib/types';
 export async function POST(request: NextRequest) {
   let body: { sectionType: SectionType; content: string; apiKey?: string };
   try {
-    body = await request.json() as typeof body;
+    body = (await request.json()) as typeof body;
   } catch {
     return Response.json({ suggestions: [] });
   }

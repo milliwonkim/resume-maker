@@ -9,10 +9,14 @@ async function getToken(): Promise<string | null> {
 
 export async function GET(
   _request: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const token = await getToken();
-  if (!token) return Response.json({ error: 'Notion 연결이 필요합니다.' }, { status: 401 });
+  if (!token)
+    return Response.json(
+      { error: 'Notion 연결이 필요합니다.' },
+      { status: 401 }
+    );
 
   try {
     const { id } = await params;
@@ -25,14 +29,18 @@ export async function GET(
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const token = await getToken();
-  if (!token) return Response.json({ error: 'Notion 연결이 필요합니다.' }, { status: 401 });
+  if (!token)
+    return Response.json(
+      { error: 'Notion 연결이 필요합니다.' },
+      { status: 401 }
+    );
 
   try {
     const { id } = await params;
-    const body = await request.json() as { title: string };
+    const body = (await request.json()) as { title: string };
     await updateResumeTitle(token, id, body.title);
     return Response.json({ success: true });
   } catch {
@@ -42,10 +50,14 @@ export async function PATCH(
 
 export async function DELETE(
   _request: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const token = await getToken();
-  if (!token) return Response.json({ error: 'Notion 연결이 필요합니다.' }, { status: 401 });
+  if (!token)
+    return Response.json(
+      { error: 'Notion 연결이 필요합니다.' },
+      { status: 401 }
+    );
 
   try {
     const { id } = await params;

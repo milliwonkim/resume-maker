@@ -8,7 +8,13 @@ export default async function Page({
 }) {
   const { id } = await params;
   return (
-    <Suspense fallback={<div className="flex items-center justify-center h-screen text-gray-400">불러오는 중...</div>}>
+    <Suspense
+      fallback={
+        <div className="flex h-screen items-center justify-center text-gray-400">
+          불러오는 중...
+        </div>
+      }
+    >
       <ResumeEditorPage resumeId={id} />
     </Suspense>
   );

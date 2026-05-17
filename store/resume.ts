@@ -5,9 +5,14 @@ import type { Resume, ResumeSection, SectionContent } from '@/lib/types';
 
 const MAX_HISTORY = 20;
 
-function appendHistory(history: ResumeSection[][], current: ResumeSection[]): ResumeSection[][] {
+function appendHistory(
+  history: ResumeSection[][],
+  current: ResumeSection[]
+): ResumeSection[][] {
   const next = [...history, current];
-  return next.length > MAX_HISTORY ? next.slice(next.length - MAX_HISTORY) : next;
+  return next.length > MAX_HISTORY
+    ? next.slice(next.length - MAX_HISTORY)
+    : next;
 }
 
 interface ResumeStore {
@@ -50,7 +55,9 @@ export const useResumeStore = create<ResumeStore>((set, get) => ({
     set((s) => ({
       resumes: s.resumes.map((r) => (r.id === id ? { ...r, title } : r)),
       currentResume:
-        s.currentResume?.id === id ? { ...s.currentResume, title } : s.currentResume,
+        s.currentResume?.id === id
+          ? { ...s.currentResume, title }
+          : s.currentResume,
     })),
 
   setCurrentResume: (resume) => set({ currentResume: resume }),
@@ -68,12 +75,16 @@ export const useResumeStore = create<ResumeStore>((set, get) => ({
   updateSectionLayout: (id, layout) =>
     set((s) => ({
       history: appendHistory(s.history, s.sections),
-      sections: s.sections.map((sec) => (sec.id === id ? { ...sec, layout } : sec)),
+      sections: s.sections.map((sec) =>
+        sec.id === id ? { ...sec, layout } : sec
+      ),
     })),
   updateSectionContent: (id, content) =>
     set((s) => ({
       history: appendHistory(s.history, s.sections),
-      sections: s.sections.map((sec) => (sec.id === id ? { ...sec, content } : sec)),
+      sections: s.sections.map((sec) =>
+        sec.id === id ? { ...sec, content } : sec
+      ),
     })),
   moveSectionUp: (id) =>
     set((s) => {

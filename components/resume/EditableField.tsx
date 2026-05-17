@@ -72,10 +72,14 @@ export function EditableField({
       suppressContentEditableWarning
       onBlur={handleBlur}
       onKeyDown={handleKeyDown}
-      onCompositionStart={() => { isComposing.current = true; }}
-      onCompositionEnd={() => { isComposing.current = false; }}
+      onCompositionStart={() => {
+        isComposing.current = true;
+      }}
+      onCompositionEnd={() => {
+        isComposing.current = false;
+      }}
       data-placeholder={placeholder}
-      className={`outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-1 rounded px-0.5 cursor-text empty:before:content-[attr(data-placeholder)] empty:before:text-gray-300${multiline ? ' whitespace-pre-wrap' : ''} ${className}`}
+      className={`cursor-text rounded px-0.5 outline-none empty:before:content-[attr(data-placeholder)] focus:ring-2 focus:ring-blue-400 focus:ring-offset-1 empty:before:text-gray-300${multiline ? 'whitespace-pre-wrap' : ''} ${className}`}
     />
   );
 }

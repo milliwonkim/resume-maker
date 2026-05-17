@@ -15,12 +15,12 @@ export function TextSection({ content, layout, onChange }: Props) {
 
   if (layout === 'layout2') {
     return (
-      <div className="border border-gray-200 rounded-lg px-4 py-3">
+      <div className="rounded-lg border border-gray-200 px-4 py-3">
         <RichTextField
           value={content.text}
           onChange={handleChange}
           placeholder="텍스트를 작성하세요..."
-          className="text-gray-700 leading-relaxed block w-full"
+          className="block w-full leading-relaxed text-gray-700"
         />
       </div>
     );
@@ -31,7 +31,7 @@ export function TextSection({ content, layout, onChange }: Props) {
       value={content.text}
       onChange={handleChange}
       placeholder="텍스트를 작성하세요..."
-      className="text-gray-700 leading-relaxed block w-full"
+      className="block w-full leading-relaxed text-gray-700"
     />
   );
 }

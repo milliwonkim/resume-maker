@@ -10,10 +10,13 @@ interface NotionRichText {
 interface NotionPageResult {
   id: string;
   object: 'page';
-  properties: Record<string, {
-    type: string;
-    title?: NotionRichText[];
-  }>;
+  properties: Record<
+    string,
+    {
+      type: string;
+      title?: NotionRichText[];
+    }
+  >;
   parent: {
     type: string;
     workspace?: boolean;
@@ -36,7 +39,11 @@ interface PageItem {
 export async function GET(request: NextRequest) {
   const store = await cookies();
   const token = store.get('notion_token')?.value;
-  if (!token) return Response.json({ error: 'Notion 연결이 필요합니다.' }, { status: 401 });
+  if (!token)
+    return Response.json(
+      { error: 'Notion 연결이 필요합니다.' },
+      { status: 401 }
+    );
 
   const { searchParams } = new URL(request.url);
   const query = searchParams.get('q') ?? '';
@@ -58,14 +65,20 @@ export async function GET(request: NextRequest) {
     });
 
     if (!res.ok) {
-      const err = await res.json() as { message?: string };
-      return Response.json({ error: err.message ?? '검색 실패' }, { status: res.status });
+      const err = (await res.json()) as { message?: string };
+      return Response.json(
+        { error: err.message ?? '검색 실패' },
+        { status: res.status }
+      );
     }
 
-    const data = await res.json() as NotionSearchResponse;
+    const data = (await res.json()) as NotionSearchResponse;
     const pages: PageItem[] = data.results.map((page) => {
-      const titleProp = Object.values(page.properties).find((p) => p.type === 'title');
-      const title = titleProp?.title?.map((t) => t.plain_text).join('') ?? '제목 없음';
+      const titleProp = Object.values(page.properties).find(
+        (p) => p.type === 'title'
+      );
+      const title =
+        titleProp?.title?.map((t) => t.plain_text).join('') ?? '제목 없음';
       return {
         id: page.id,
         title,
@@ -77,7 +90,7 @@ export async function GET(request: NextRequest) {
   } catch (err) {
     return Response.json(
       { error: err instanceof Error ? err.message : '알 수 없는 오류' },
-      { status: 500 },
+      { status: 500 }
     );
   }
 }

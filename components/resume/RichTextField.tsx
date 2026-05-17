@@ -1,6 +1,13 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState, type CSSProperties, type MouseEvent as ReactMouseEvent } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type MouseEvent as ReactMouseEvent,
+} from 'react';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
@@ -35,13 +42,11 @@ export function RichTextField({
 }: RichTextFieldProps) {
   const wrapperRef = useRef<HTMLDivElement>(null);
   const [isFocused, setIsFocused] = useState(false);
-  const [toolbarPosition, setToolbarPosition] = useState<ToolbarPosition | null>(null);
+  const [toolbarPosition, setToolbarPosition] =
+    useState<ToolbarPosition | null>(null);
 
   const editor = useEditor({
-    extensions: [
-      StarterKit,
-      Placeholder.configure({ placeholder }),
-    ],
+    extensions: [StarterKit, Placeholder.configure({ placeholder })],
     content: normalizeRichTextForEditor(value),
     immediatelyRender: false,
     onFocus: () => setIsFocused(true),
@@ -54,29 +59,35 @@ export function RichTextField({
     },
   });
 
-  const updateToolbarPosition = useCallback((clientX?: number, clientY?: number) => {
-    const wrapper = wrapperRef.current;
-    if (!wrapper) return;
+  const updateToolbarPosition = useCallback(
+    (clientX?: number, clientY?: number) => {
+      const wrapper = wrapperRef.current;
+      if (!wrapper) return;
 
-    const rect = wrapper.getBoundingClientRect();
-    const maxLeft = Math.max(TOOLBAR_EDGE_PADDING, rect.width - TOOLBAR_EDGE_PADDING);
-    let left = rect.width / 2;
-    let top = -TOOLBAR_GAP;
+      const rect = wrapper.getBoundingClientRect();
+      const maxLeft = Math.max(
+        TOOLBAR_EDGE_PADDING,
+        rect.width - TOOLBAR_EDGE_PADDING
+      );
+      let left = rect.width / 2;
+      let top = -TOOLBAR_GAP;
 
-    if (clientX !== undefined && clientY !== undefined) {
-      left = clientX - rect.left;
-      top = clientY - rect.top - TOOLBAR_GAP;
-    } else if (editor) {
-      const coords = editor.view.coordsAtPos(editor.state.selection.from);
-      left = coords.left - rect.left;
-      top = coords.top - rect.top - TOOLBAR_GAP;
-    }
+      if (clientX !== undefined && clientY !== undefined) {
+        left = clientX - rect.left;
+        top = clientY - rect.top - TOOLBAR_GAP;
+      } else if (editor) {
+        const coords = editor.view.coordsAtPos(editor.state.selection.from);
+        left = coords.left - rect.left;
+        top = coords.top - rect.top - TOOLBAR_GAP;
+      }
 
-    setToolbarPosition({
-      left: clamp(left, TOOLBAR_EDGE_PADDING, maxLeft),
-      top,
-    });
-  }, [editor]);
+      setToolbarPosition({
+        left: clamp(left, TOOLBAR_EDGE_PADDING, maxLeft),
+        top,
+      });
+    },
+    [editor]
+  );
 
   useEffect(() => {
     if (!editor || editor.isFocused) return;

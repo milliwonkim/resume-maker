@@ -22,7 +22,9 @@ interface AILanguageModelSession {
 
 interface AILanguageModel {
   capabilities(): Promise<AILanguageModelCapabilities>;
-  create(options?: AILanguageModelCreateOptions): Promise<AILanguageModelSession>;
+  create(
+    options?: AILanguageModelCreateOptions
+  ): Promise<AILanguageModelSession>;
 }
 
 interface WindowAI {

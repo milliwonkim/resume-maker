@@ -14,7 +14,7 @@ const COOKIE_OPTIONS = {
 export async function POST(request: NextRequest) {
   let token: string;
   try {
-    const body = await request.json() as { token: string };
+    const body = (await request.json()) as { token: string };
     token = body.token?.trim();
   } catch {
     return Response.json({ error: '잘못된 요청입니다.' }, { status: 400 });
@@ -32,11 +32,14 @@ export async function POST(request: NextRequest) {
       'Notion-Version': '2022-06-28',
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ filter: { value: 'page', property: 'object' }, page_size: 1 }),
+    body: JSON.stringify({
+      filter: { value: 'page', property: 'object' },
+      page_size: 1,
+    }),
   });
 
   if (!res.ok) {
-    const err = await res.json() as { message?: string };
+    const err = (await res.json()) as { message?: string };
     return Response.json(
       { error: err.message ?? 'Notion 토큰이 유효하지 않습니다.' },
       { status: 401 }
