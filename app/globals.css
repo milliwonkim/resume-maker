@@ -12,15 +12,123 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
+}
+
+.rich-text-field {
+  min-height: 1em;
+}
+
+.rich-text-field p {
+  margin: 0;
+}
+
+.rich-text-field p + p,
+.rich-text-field ul + p,
+.rich-text-field ol + p,
+.rich-text-field p + ul,
+.rich-text-field p + ol {
+  margin-top: 0.35em;
+}
+
+.rich-text-field ul,
+.rich-text-field ol {
+  margin: 0.35em 0 0.35em 1.25em;
+  padding-left: 1rem;
+}
+
+.rich-text-field ul {
+  list-style: disc;
+}
+
+.rich-text-field ol {
+  list-style: decimal;
+}
+
+.rich-text-field li {
+  margin: 0.15em 0;
+  padding-left: 0.1rem;
+}
+
+.rich-text-field strong {
+  font-weight: 700;
+}
+
+.rich-text-field em {
+  font-style: italic;
+}
+
+.rich-text-field s {
+  text-decoration: line-through;
+}
+
+.rich-text-field u {
+  text-decoration: underline;
+}
+
+.rich-text-field p.is-editor-empty:first-child::before {
+  color: #d1d5db;
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  pointer-events: none;
+}
+
+.resume-action-buttons,
+.resume-action-button {
+  display: none;
+}
+
+.resume-action-host:focus-within .resume-action-buttons {
+  display: flex;
+}
+
+.resume-action-host:focus-within .resume-action-button {
+  display: inline-flex;
+}
+
+/* Print styles */
+@media print {
+  header,
+  .no-print {
+    display: none !important;
+  }
+
+  html,
+  body {
+    background: white;
+  }
+
+  .resume-editor-shell {
+    min-height: auto !important;
+    background: white !important;
+  }
+
+  main {
+    padding: 0 !important;
+    overflow: visible !important;
+  }
+
+  .resume-print-root {
+    width: 100% !important;
+    max-width: none !important;
+    min-height: auto !important;
+    margin: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    padding: 0.5in !important;
+  }
+
+  .resume-print-root *,
+  .resume-print-root::before,
+  .resume-print-root::after {
+    box-shadow: none !important;
+  }
+
+  .rich-text-field p.is-editor-empty:first-child::before {
+    content: "" !important;
+  }
 }
