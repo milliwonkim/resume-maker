@@ -11,6 +11,7 @@ drop table if exists resumes cascade;
 
 create table resumes (
   id        bigint generated always as identity primary key,
+  user_id   uuid        not null references auth.users(id) on delete cascade,
   title     text        not null default '새 이력서',
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
@@ -49,7 +50,142 @@ create trigger resume_sections_updated_at
 -- 인덱스
 create index on resume_sections(resume_id);
 create index on resume_sections(resume_id, order_index);
+create index on resumes(user_id);
+
+alter table resumes enable row level security;
+alter table resume_sections enable row level security;
+
+create policy "Users can read own resumes"
+  on resumes for select
+  to authenticated
+  using (user_id = auth.uid());
+
+create policy "Users can insert own resumes"
+  on resumes for insert
+  to authenticated
+  with check (user_id = auth.uid());
+
+create policy "Users can update own resumes"
+  on resumes for update
+  to authenticated
+  using (user_id = auth.uid())
+  with check (user_id = auth.uid());
+
+create policy "Users can delete own resumes"
+  on resumes for delete
+  to authenticated
+  using (user_id = auth.uid());
+
+create policy "Users can read own resume sections"
+  on resume_sections for select
+  to authenticated
+  using (
+    exists (
+      select 1
+      from resumes
+      where resumes.id = resume_sections.resume_id
+        and resumes.user_id = auth.uid()
+    )
+  );
+
+create policy "Users can insert own resume sections"
+  on resume_sections for insert
+  to authenticated
+  with check (
+    exists (
+      select 1
+      from resumes
+      where resumes.id = resume_sections.resume_id
+        and resumes.user_id = auth.uid()
+    )
+  );
+
+create policy "Users can update own resume sections"
+  on resume_sections for update
+  to authenticated
+  using (
+    exists (
+      select 1
+      from resumes
+      where resumes.id = resume_sections.resume_id
+        and resumes.user_id = auth.uid()
+    )
+  )
+  with check (
+    exists (
+      select 1
+      from resumes
+      where resumes.id = resume_sections.resume_id
+        and resumes.user_id = auth.uid()
+    )
+  );
+
+create policy "Users can delete own resume sections"
+  on resume_sections for delete
+  to authenticated
+  using (
+    exists (
+      select 1
+      from resumes
+      where resumes.id = resume_sections.resume_id
+        and resumes.user_id = auth.uid()
+    )
+  );
+
+insert into storage.buckets (
+  id,
+  name,
+  public,
+  file_size_limit,
+  allowed_mime_types
+) values (
+  'resume-images',
+  'resume-images',
+  true,
+  4194304,
+  array['image/jpeg', 'image/png', 'image/webp', 'image/gif']
+) on conflict (id) do update set
+  public = excluded.public,
+  file_size_limit = excluded.file_size_limit,
+  allowed_mime_types = excluded.allowed_mime_types;
+
+drop policy if exists "Anyone can read resume images" on storage.objects;
+drop policy if exists "Users can upload own resume images" on storage.objects;
+drop policy if exists "Users can update own resume images" on storage.objects;
+drop policy if exists "Users can delete own resume images" on storage.objects;
+
+create policy "Anyone can read resume images"
+  on storage.objects for select
+  using (bucket_id = 'resume-images');
+
+create policy "Users can upload own resume images"
+  on storage.objects for insert
+  to authenticated
+  with check (
+    bucket_id = 'resume-images'
+    and (storage.foldername(name))[1] = auth.uid()::text
+  );
+
+create policy "Users can update own resume images"
+  on storage.objects for update
+  to authenticated
+  using (
+    bucket_id = 'resume-images'
+    and (storage.foldername(name))[1] = auth.uid()::text
+  )
+  with check (
+    bucket_id = 'resume-images'
+    and (storage.foldername(name))[1] = auth.uid()::text
+  );
+
+create policy "Users can delete own resume images"
+  on storage.objects for delete
+  to authenticated
+  using (
+    bucket_id = 'resume-images'
+    and (storage.foldername(name))[1] = auth.uid()::text
+  );
 
 grant usage on schema public to anon, authenticated;
-grant all on table resumes to anon, authenticated;
-grant all on table resume_sections to anon, authenticated;
+grant all on table resumes to authenticated;
+grant all on table resume_sections to authenticated;

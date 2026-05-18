@@ -85,6 +85,7 @@ export interface ExperienceProject {
   startDate?: string;
   endDate?: string;
   tech?: string;
+  images?: ResumeImage[];
   problem?: RichTextDocument;
   ownership?: RichTextDocument;
   achievement?: RichTextDocument;
@@ -97,6 +98,7 @@ export interface ExperienceItem {
   location: string;
   startDate: string;
   endDate: string;
+  images?: ResumeImage[];
   projects?: ExperienceProject[];
   // legacy fields (backward compat — used when projects is absent)
   tech?: string;
@@ -166,12 +168,21 @@ export interface SkillsContent {
 }
 
 // ── Projects ────────────────────────────────────────────
+export interface ResumeImage {
+  id: string;
+  src: string;
+  path?: string;
+  alt: string;
+  caption?: string;
+}
+
 export interface ProjectItem {
   id: string;
   name: string;
   description: RichTextDocument;
   tech: string;
   link?: string;
+  images?: ResumeImage[];
 }
 
 export interface ProjectsContent {
@@ -252,7 +263,9 @@ export function makeDefaultContent(type: SectionType): SectionContent {
         text: makeRichTextDocument('자기소개를 작성해주세요.'),
       } satisfies SummaryContent;
     case 'text':
-      return { text: makeRichTextDocument('내용을 작성해주세요.') } satisfies TextContent;
+      return {
+        text: makeRichTextDocument('내용을 작성해주세요.'),
+      } satisfies TextContent;
     case 'experience':
       return {
         items: [
@@ -270,11 +283,13 @@ export function makeDefaultContent(type: SectionType): SectionContent {
                 startDate: '',
                 endDate: '',
                 tech: '',
+                images: [],
                 problem: makeRichTextDocument(),
                 ownership: makeRichTextDocument(),
                 achievement: makeRichTextDocument(),
               },
             ],
+            images: [],
           },
         ],
       } satisfies ExperienceContent;
@@ -314,6 +329,7 @@ export function makeDefaultContent(type: SectionType): SectionContent {
             description: makeRichTextDocument('프로젝트 설명을 작성하세요.'),
             tech: 'React, TypeScript',
             link: '',
+            images: [],
           },
         ],
       } satisfies ProjectsContent;

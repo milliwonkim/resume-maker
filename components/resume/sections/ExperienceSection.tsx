@@ -9,6 +9,7 @@ import { makeRichTextDocument } from '@/lib/types';
 import { isEmptyRichText } from '@/lib/rich-text';
 
 import { EditableField } from '../EditableField';
+import { ImageAttachmentEditor } from '../ImageAttachmentEditor';
 import { RichTextField } from '../RichTextField';
 
 interface Props {
@@ -94,6 +95,7 @@ function newProject(): ExperienceProject {
     startDate: '',
     endDate: '',
     tech: '',
+    images: [],
     problem: makeRichTextDocument(),
     ownership: makeRichTextDocument(),
     achievement: makeRichTextDocument(),
@@ -184,6 +186,11 @@ function ProjectCard({
           </div>
         ))}
       </div>
+      <ImageAttachmentEditor
+        images={project.images}
+        onChange={(images) => onUpdate({ images })}
+        addLabel="프로젝트 사진 추가"
+      />
     </div>
   );
 }
@@ -355,6 +362,7 @@ export function ExperienceSection({ content, layout, onChange }: Props) {
     location: '서울',
     startDate: '20XX.01',
     endDate: '현재',
+    images: [],
     projects: [newProject()],
   });
 
@@ -425,6 +433,11 @@ export function ExperienceSection({ content, layout, onChange }: Props) {
             <ProjectsBlock
               item={item}
               onUpdate={(patch) => update(item.id, patch)}
+            />
+            <ImageAttachmentEditor
+              images={item.images}
+              onChange={(images) => update(item.id, { images })}
+              addLabel="경력 사진 추가"
             />
             <CompanyActions
               onAddCompany={add}
@@ -502,6 +515,11 @@ export function ExperienceSection({ content, layout, onChange }: Props) {
                 item={item}
                 onUpdate={(patch) => update(item.id, patch)}
               />
+              <ImageAttachmentEditor
+                images={item.images}
+                onChange={(images) => update(item.id, { images })}
+                addLabel="경력 사진 추가"
+              />
               <CompanyActions
                 onAddCompany={add}
                 onRemoveCompany={() => remove(item.id)}
@@ -574,6 +592,11 @@ export function ExperienceSection({ content, layout, onChange }: Props) {
             item={item}
             onUpdate={(patch) => update(item.id, patch)}
             textSize="text-sm"
+          />
+          <ImageAttachmentEditor
+            images={item.images}
+            onChange={(images) => update(item.id, { images })}
+            addLabel="경력 사진 추가"
           />
           <CompanyActions
             onAddCompany={add}

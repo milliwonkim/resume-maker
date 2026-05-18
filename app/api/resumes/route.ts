@@ -1,9 +1,14 @@
 import { NextRequest } from 'next/server';
+
+import { getAuthenticatedUser, unauthorizedResponse } from '@/lib/auth';
 import { getResumes, createResume } from '@/lib/supabase-db';
 
 export async function GET() {
   try {
-    const resumes = await getResumes();
+    const auth = await getAuthenticatedUser();
+    if (!auth) return unauthorizedResponse();
+
+    const resumes = await getResumes(auth);
     return Response.json(resumes);
   } catch (err) {
     return Response.json(
@@ -17,8 +22,11 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
+    const auth = await getAuthenticatedUser();
+    if (!auth) return unauthorizedResponse();
+
     const body = (await request.json().catch(() => ({}))) as { title?: string };
-    const resume = await createResume(body.title);
+    const resume = await createResume(auth, body.title);
     return Response.json(resume, { status: 201 });
   } catch (err) {
     return Response.json(

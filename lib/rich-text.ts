@@ -8,6 +8,7 @@ import type {
   HeaderContent,
   ProjectItem,
   ProjectsContent,
+  ResumeImage,
   RichTextDocument,
   RichTextMark,
   RichTextMarkType,
@@ -90,20 +91,29 @@ function htmlToMarkdown(value: string): string {
 }
 
 function htmlToPlainText(value: string): string {
-  return decodeHtmlEntities(htmlToMarkdown(value).replace(/\*\*|__|\+\+|~~|\*/g, ''));
+  return decodeHtmlEntities(
+    htmlToMarkdown(value).replace(/\*\*|__|\+\+|~~|\*/g, '')
+  );
 }
 
 function normalizePlainTextValue(value: unknown): string {
   if (typeof value !== 'string') return '';
   const trimmed = stripCodeFence(value).trim();
-  return HTML_TAG_PATTERN.test(trimmed) ? htmlToPlainText(trimmed) : decodeHtmlEntities(trimmed);
+  return HTML_TAG_PATTERN.test(trimmed)
+    ? htmlToPlainText(trimmed)
+    : decodeHtmlEntities(trimmed);
 }
 
 function textNode(text: string, marks: RichTextMark[] = []): RichTextNode {
-  return marks.length > 0 ? { type: 'text', text, marks } : { type: 'text', text };
+  return marks.length > 0
+    ? { type: 'text', text, marks }
+    : { type: 'text', text };
 }
 
-function parseInline(value: string, marks: RichTextMark[] = []): RichTextNode[] {
+function parseInline(
+  value: string,
+  marks: RichTextMark[] = []
+): RichTextNode[] {
   const matches = MARK_PATTERNS.map(({ marker, type }) => {
     const start = value.indexOf(marker);
     if (start < 0) return null;
@@ -238,7 +248,9 @@ function sanitizeNode(value: unknown): RichTextNode | null {
 }
 
 function isRichTextDocument(value: unknown): value is RichTextDocument {
-  return isRecord(value) && value.type === 'doc' && Array.isArray(value.content);
+  return (
+    isRecord(value) && value.type === 'doc' && Array.isArray(value.content)
+  );
 }
 
 export function normalizeRichTextValue(value: unknown): RichTextDocument {
@@ -259,12 +271,35 @@ export function normalizeRichTextValue(value: unknown): RichTextDocument {
 
   const trimmed = stripCodeFence(value).trim();
   if (!trimmed) return makeRichTextDocument();
-  return markdownToDocument(HTML_TAG_PATTERN.test(trimmed) ? htmlToMarkdown(trimmed) : trimmed);
+  return markdownToDocument(
+    HTML_TAG_PATTERN.test(trimmed) ? htmlToMarkdown(trimmed) : trimmed
+  );
 }
 
-function normalizeOptionalRichText(value: unknown): RichTextDocument | undefined {
+function normalizeOptionalRichText(
+  value: unknown
+): RichTextDocument | undefined {
   const document = normalizeRichTextValue(value);
   return richTextToPlainText(document).trim() ? document : undefined;
+}
+
+function normalizeResumeImage(value: unknown): ResumeImage | null {
+  if (!isRecord(value)) return null;
+  const src = normalizePlainTextValue(value.src);
+  if (!src) return null;
+
+  return {
+    id: typeof value.id === 'string' ? value.id : crypto.randomUUID(),
+    src,
+    path: normalizePlainTextValue(value.path),
+    alt: normalizePlainTextValue(value.alt) || '첨부 사진',
+    caption: normalizePlainTextValue(value.caption),
+  };
+}
+
+function normalizeResumeImages(value: unknown): ResumeImage[] {
+  if (!Array.isArray(value)) return [];
+  return value.map(normalizeResumeImage).filter((image) => image !== null);
 }
 
 function normalizeExperienceProject(value: unknown): ExperienceProject | null {
@@ -275,6 +310,7 @@ function normalizeExperienceProject(value: unknown): ExperienceProject | null {
     startDate: normalizePlainTextValue(value.startDate),
     endDate: normalizePlainTextValue(value.endDate),
     tech: normalizePlainTextValue(value.tech),
+    images: normalizeResumeImages(value.images),
     problem: normalizeOptionalRichText(value.problem),
     ownership: normalizeOptionalRichText(value.ownership),
     achievement: normalizeOptionalRichText(value.achievement),
@@ -296,6 +332,7 @@ function normalizeExperienceItem(value: unknown): ExperienceItem | null {
     location: normalizePlainTextValue(value.location),
     startDate: normalizePlainTextValue(value.startDate),
     endDate: normalizePlainTextValue(value.endDate),
+    images: normalizeResumeImages(value.images),
     projects,
     tech: normalizePlainTextValue(value.tech),
     problem: normalizeOptionalRichText(value.problem),
@@ -313,10 +350,13 @@ function normalizeProjectItem(value: unknown): ProjectItem | null {
     description: normalizeRichTextValue(value.description),
     tech: normalizePlainTextValue(value.tech),
     link: normalizePlainTextValue(value.link),
+    images: normalizeResumeImages(value.images),
   };
 }
 
-function normalizeHeaderContent(content: Record<string, unknown>): HeaderContent {
+function normalizeHeaderContent(
+  content: Record<string, unknown>
+): HeaderContent {
   return {
     name: normalizePlainTextValue(content.name),
     title: normalizePlainTextValue(content.title),
@@ -352,11 +392,15 @@ function normalizeEducationItem(value: unknown): EducationItem | null {
     endDate: normalizePlainTextValue(value.endDate),
     gpa: normalizePlainTextValue(value.gpa),
     gpaScale:
-      value.gpaScale === '4.3' || value.gpaScale === '4.0' ? value.gpaScale : '4.5',
+      value.gpaScale === '4.3' || value.gpaScale === '4.0'
+        ? value.gpaScale
+        : '4.5',
   };
 }
 
-function normalizeSkillsContent(content: Record<string, unknown>): SkillsContent {
+function normalizeSkillsContent(
+  content: Record<string, unknown>
+): SkillsContent {
   const categories = Array.isArray(content.categories)
     ? content.categories.filter(isRecord).map((category) => ({
         id: typeof category.id === 'string' ? category.id : crypto.randomUUID(),
@@ -377,10 +421,14 @@ export function normalizeSectionContent(
         | SummaryContent
         | TextContent;
     }
-    if (sectionType === 'experience') return { items: [] } satisfies ExperienceContent;
-    if (sectionType === 'education') return { items: [] } satisfies EducationContent;
-    if (sectionType === 'skills') return { categories: [] } satisfies SkillsContent;
-    if (sectionType === 'projects') return { items: [] } satisfies ProjectsContent;
+    if (sectionType === 'experience')
+      return { items: [] } satisfies ExperienceContent;
+    if (sectionType === 'education')
+      return { items: [] } satisfies EducationContent;
+    if (sectionType === 'skills')
+      return { categories: [] } satisfies SkillsContent;
+    if (sectionType === 'projects')
+      return { items: [] } satisfies ProjectsContent;
     return {
       name: '',
       title: '',
@@ -403,7 +451,9 @@ export function normalizeSectionContent(
 
   if (sectionType === 'experience') {
     const items = Array.isArray(content.items)
-      ? content.items.map(normalizeExperienceItem).filter((item) => item !== null)
+      ? content.items
+          .map(normalizeExperienceItem)
+          .filter((item) => item !== null)
       : [];
     return { ...content, items } as ExperienceContent;
   }
@@ -417,7 +467,9 @@ export function normalizeSectionContent(
 
   if (sectionType === 'education') {
     const items = Array.isArray(content.items)
-      ? content.items.map(normalizeEducationItem).filter((item) => item !== null)
+      ? content.items
+          .map(normalizeEducationItem)
+          .filter((item) => item !== null)
       : [];
     return { items } satisfies EducationContent;
   }
@@ -462,9 +514,10 @@ function richTextNodeToMarkdown(node: RichTextNode, index = 0): string {
 
   if (node.type === 'hardBreak') return '\n';
 
-  const content = node.content?.map((child, childIndex) =>
-    richTextNodeToMarkdown(child, childIndex)
-  ) ?? [];
+  const content =
+    node.content?.map((child, childIndex) =>
+      richTextNodeToMarkdown(child, childIndex)
+    ) ?? [];
 
   if (node.type === 'bulletList') {
     return content.map((item) => `- ${item.trim()}`).join('\n');
@@ -487,7 +540,9 @@ function richTextNodeToMarkdown(node: RichTextNode, index = 0): string {
   return content.join(index > 0 ? '\n' : '');
 }
 
-export function richTextToMarkdown(value: RichTextDocument | undefined): string {
+export function richTextToMarkdown(
+  value: RichTextDocument | undefined
+): string {
   if (!value) return '';
   return value.content
     .map((node, index) => richTextNodeToMarkdown(node, index))
@@ -509,15 +564,26 @@ function compactHeaderContent(content: HeaderContent): HeaderContent {
   };
 }
 
+function compactResumeImage(image: ResumeImage): Record<string, string> {
+  return {
+    id: image.id,
+    src: image.src,
+    path: image.path ?? '',
+    alt: image.alt,
+    caption: image.caption ?? '',
+  };
+}
+
 function compactExperienceProject(
   project: ExperienceProject
-): Record<string, string> {
+): Record<string, unknown> {
   return {
     id: project.id,
     name: project.name,
     startDate: project.startDate ?? '',
     endDate: project.endDate ?? '',
     tech: project.tech ?? '',
+    images: project.images?.map(compactResumeImage) ?? [],
     problem: richTextToMarkdown(project.problem),
     ownership: richTextToMarkdown(project.ownership),
     achievement: richTextToMarkdown(project.achievement),
@@ -532,6 +598,7 @@ function compactExperienceItem(item: ExperienceItem): Record<string, unknown> {
     location: item.location,
     startDate: item.startDate,
     endDate: item.endDate,
+    images: item.images?.map(compactResumeImage) ?? [],
     projects: item.projects?.map(compactExperienceProject) ?? [],
     tech: item.tech ?? '',
     problem: richTextToMarkdown(item.problem),
@@ -576,13 +643,14 @@ function compactSkillCategory(category: SkillCategory): SkillCategory {
   };
 }
 
-function compactProjectItem(item: ProjectItem): Record<string, string> {
+function compactProjectItem(item: ProjectItem): Record<string, unknown> {
   return {
     id: item.id,
     name: item.name,
     description: richTextToMarkdown(item.description),
     tech: item.tech,
     link: item.link ?? '',
+    images: item.images?.map(compactResumeImage) ?? [],
   };
 }
 

@@ -1,4 +1,6 @@
 import { NextRequest } from 'next/server';
+
+import { getAuthenticatedUser, unauthorizedResponse } from '@/lib/auth';
 import {
   updateSectionLayout,
   updateSectionContent,
@@ -12,6 +14,9 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string; sectionId: string }> }
 ) {
   try {
+    const auth = await getAuthenticatedUser();
+    if (!auth) return unauthorizedResponse();
+
     const { id, sectionId } = await params;
     const body = (await request.json()) as {
       layout?: string;
@@ -20,11 +25,11 @@ export async function PATCH(
     };
 
     if (body.layout !== undefined)
-      await updateSectionLayout(id, sectionId, body.layout);
+      await updateSectionLayout(auth, id, sectionId, body.layout);
     if (body.content !== undefined)
-      await updateSectionContent(id, sectionId, body.content);
+      await updateSectionContent(auth, id, sectionId, body.content);
     if (body.order_index !== undefined)
-      await updateSectionOrder(id, sectionId, body.order_index);
+      await updateSectionOrder(auth, id, sectionId, body.order_index);
 
     return Response.json({ success: true });
   } catch (err) {
@@ -41,8 +46,11 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string; sectionId: string }> }
 ) {
   try {
+    const auth = await getAuthenticatedUser();
+    if (!auth) return unauthorizedResponse();
+
     const { id, sectionId } = await params;
-    await deleteSection(id, sectionId);
+    await deleteSection(auth, id, sectionId);
     return Response.json({ success: true });
   } catch {
     return Response.json(

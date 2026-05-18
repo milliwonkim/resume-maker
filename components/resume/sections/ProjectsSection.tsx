@@ -4,6 +4,7 @@ import type { ProjectsContent, ProjectItem } from '@/lib/types';
 import { makeRichTextDocument } from '@/lib/types';
 
 import { EditableField } from '../EditableField';
+import { ImageAttachmentEditor } from '../ImageAttachmentEditor';
 import { RichTextField } from '../RichTextField';
 
 interface Props {
@@ -27,6 +28,7 @@ export function ProjectsSection({ content, layout, onChange }: Props) {
     description: makeRichTextDocument('프로젝트 설명을 작성하세요.'),
     tech: 'React, TypeScript',
     link: '',
+    images: [],
   });
 
   const add = () => onChange({ items: [...content.items, newItem()] });
@@ -82,6 +84,10 @@ export function ProjectsSection({ content, layout, onChange }: Props) {
               tag="p"
               className="mt-1 text-xs text-gray-400"
               placeholder="기술 스택 (쉼표로 구분)"
+            />
+            <ImageAttachmentEditor
+              images={item.images}
+              onChange={(images) => update(item.id, { images })}
             />
             <div className="no-print resume-action-buttons mt-2 gap-1">
               <button
@@ -145,6 +151,10 @@ export function ProjectsSection({ content, layout, onChange }: Props) {
               onChange={(v) => update(item.id, { description: v })}
               className="mt-1 block w-full text-sm leading-relaxed text-gray-600"
               placeholder="프로젝트 설명"
+            />
+            <ImageAttachmentEditor
+              images={item.images}
+              onChange={(images) => update(item.id, { images })}
             />
           </div>
           <div className="no-print resume-action-buttons shrink-0 gap-1">

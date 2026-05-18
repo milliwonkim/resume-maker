@@ -1,32 +1,68 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { toPng } from 'html-to-image';
-import { jsPDF } from 'jspdf';
+import fontkit from '@pdf-lib/fontkit';
+import { PDFDocument, PageSizes, rgb, type PDFFont, type PDFPage } from 'pdf-lib';
 import { useRouter } from 'next/navigation';
 
 import { useResumeStore } from '@/store/resume';
 import { useAIStore } from '@/store/ai';
 import { useAIJobsStore, type AIJob } from '@/store/ai-jobs';
 import { applyAIResult } from '@/lib/ai-apply';
+import { richTextToPlainText } from '@/lib/rich-text';
 import { ResumeEditor, type ResumeEditorRef } from './ResumeEditor';
 import { SettingsDialog } from '@/components/settings/SettingsDialog';
 import { AIPanel } from '@/components/ai/AIPanel';
-import type { Resume } from '@/lib/types';
+import type {
+  EducationContent,
+  ExperienceContent,
+  HeaderContent,
+  ProjectsContent,
+  Resume,
+  ResumeSection,
+  RichTextDocument,
+  SkillsContent,
+  SummaryContent,
+  TextContent,
+} from '@/lib/types';
 
 interface Props {
   resumeId: string;
 }
 
-const RESUME_EXPORT_SELECTOR = '.resume-print-root';
-const PDF_EXPORT_CLASS = 'is-pdf-exporting';
 const PDF_FILE_EXTENSION = 'pdf';
-const PDF_IMAGE_FORMAT = 'PNG';
-const PDF_IMAGE_COMPRESSION = 'FAST';
-const PDF_EXPORT_PIXEL_RATIO = 2;
-const PDF_PAGE_WIDTH_MM = 210;
-const PDF_PAGE_HEIGHT_MM = 297;
+const PDF_MARGIN = 42;
+const PDF_CONTENT_GAP = 7;
+const PDF_SECTION_GAP = 16;
+const PDF_ITEM_GAP = 9;
+const PDF_REGULAR_FONT_URL = '/api/pdf-fonts/regular';
+const PDF_BOLD_FONT_URL = '/api/pdf-fonts/bold';
 const FILE_NAME_FORBIDDEN_CHARS = /[\\/:*?"<>|]+/g;
+const PDF_TEXT_COLOR = rgb(0.13, 0.15, 0.18);
+const PDF_MUTED_COLOR = rgb(0.36, 0.39, 0.44);
+const PDF_ACCENT_COLOR = rgb(0.15, 0.34, 0.72);
+const PDF_LINE_COLOR = rgb(0.78, 0.81, 0.85);
+
+interface PdfFonts {
+  regular: PDFFont;
+  bold: PDFFont;
+}
+
+interface PdfContext {
+  document: PDFDocument;
+  page: PDFPage;
+  fonts: PdfFonts;
+  y: number;
+}
+
+interface PdfParagraph {
+  text: string;
+  font?: 'regular' | 'bold';
+  size?: number;
+  color?: ReturnType<typeof rgb>;
+  indent?: number;
+  gapAfter?: number;
+}
 
 function getExportFileName(title: string | undefined) {
   const name = (title?.trim() || 'resume')
@@ -35,82 +71,431 @@ function getExportFileName(title: string | undefined) {
   return `${name}.${PDF_FILE_EXTENSION}`;
 }
 
-function shouldRenderPdfNode(node: HTMLElement) {
-  if (!(node instanceof Element)) return true;
-  return !node.closest('.no-print, .rich-text-toolbar');
+function getPageWidth() {
+  return PageSizes.A4[0];
 }
 
-function waitForExportStyles() {
-  return new Promise<void>((resolve) => {
-    window.requestAnimationFrame(() => {
-      window.requestAnimationFrame(() => resolve());
-    });
-  });
+function getPageHeight() {
+  return PageSizes.A4[1];
 }
 
-function loadImage(src: string) {
-  return new Promise<HTMLImageElement>((resolve, reject) => {
-    const image = new Image();
-    image.onload = () => resolve(image);
-    image.onerror = () => reject(new Error('PDF 이미지를 만들지 못했습니다.'));
-    image.src = src;
-  });
+function getContentWidth(indent = 0) {
+  return getPageWidth() - PDF_MARGIN * 2 - indent;
 }
 
-async function downloadElementAsPdf(element: HTMLElement, fileName: string) {
-  document.documentElement.classList.add(PDF_EXPORT_CLASS);
+function getUsableHeight() {
+  return getPageHeight() - PDF_MARGIN * 2;
+}
 
-  try {
-    await document.fonts.ready;
-    await waitForExportStyles();
+function isBlank(value: string | undefined): boolean {
+  return !value || value.trim() === '';
+}
 
-    const imageData = await toPng(element, {
-      backgroundColor: '#ffffff',
-      cacheBust: true,
-      pixelRatio: PDF_EXPORT_PIXEL_RATIO,
-      filter: shouldRenderPdfNode,
-    });
-    const image = await loadImage(imageData);
-    const pdf = new jsPDF({
-      orientation: 'portrait',
-      unit: 'mm',
-      format: 'a4',
-    });
+function compact(values: Array<string | undefined>): string[] {
+  return values.filter((value) => !isBlank(value)) as string[];
+}
 
-    const imageHeightMm =
-      (image.height * PDF_PAGE_WIDTH_MM) / image.width;
-    let y = 0;
+function getTextFont(fonts: PdfFonts, type: 'regular' | 'bold' = 'regular') {
+  return type === 'bold' ? fonts.bold : fonts.regular;
+}
 
-    pdf.addImage(
-      imageData,
-      PDF_IMAGE_FORMAT,
-      0,
-      y,
-      PDF_PAGE_WIDTH_MM,
-      imageHeightMm,
-      undefined,
-      PDF_IMAGE_COMPRESSION
-    );
+function splitLongWord(word: string, font: PDFFont, size: number, maxWidth: number) {
+  const chunks: string[] = [];
+  let current = '';
+  for (const char of word) {
+    const next = `${current}${char}`;
+    if (font.widthOfTextAtSize(next, size) > maxWidth && current) {
+      chunks.push(current);
+      current = char;
+    } else {
+      current = next;
+    }
+  }
+  if (current) chunks.push(current);
+  return chunks;
+}
 
-    while (Math.abs(y) + PDF_PAGE_HEIGHT_MM < imageHeightMm) {
-      y -= PDF_PAGE_HEIGHT_MM;
-      pdf.addPage();
-      pdf.addImage(
-        imageData,
-        PDF_IMAGE_FORMAT,
-        0,
-        y,
-        PDF_PAGE_WIDTH_MM,
-        imageHeightMm,
-        undefined,
-        PDF_IMAGE_COMPRESSION
-      );
+function wrapText(text: string, font: PDFFont, size: number, maxWidth: number) {
+  const wrapped: string[] = [];
+  for (const sourceLine of text.replace(/\r\n?/g, '\n').split('\n')) {
+    const words = sourceLine.trim().split(/\s+/).filter(Boolean);
+    if (words.length === 0) {
+      wrapped.push('');
+      continue;
     }
 
-    pdf.save(fileName);
-  } finally {
-    document.documentElement.classList.remove(PDF_EXPORT_CLASS);
+    let line = '';
+    for (const word of words) {
+      const candidate = line ? `${line} ${word}` : word;
+      if (font.widthOfTextAtSize(candidate, size) <= maxWidth) {
+        line = candidate;
+        continue;
+      }
+
+      if (line) wrapped.push(line);
+      if (font.widthOfTextAtSize(word, size) <= maxWidth) {
+        line = word;
+        continue;
+      }
+
+      const chunks = splitLongWord(word, font, size, maxWidth);
+      wrapped.push(...chunks.slice(0, -1));
+      line = chunks.at(-1) ?? '';
+    }
+    if (line) wrapped.push(line);
   }
+  return wrapped;
+}
+
+function addPage(context: PdfContext) {
+  context.page = context.document.addPage(PageSizes.A4);
+  context.y = getPageHeight() - PDF_MARGIN;
+}
+
+function ensureSpace(context: PdfContext, height: number) {
+  if (context.y - height >= PDF_MARGIN) return;
+  addPage(context);
+}
+
+function getParagraphHeight(context: PdfContext, paragraph: PdfParagraph) {
+  const size = paragraph.size ?? 10;
+  const lineHeight = size * 1.45;
+  const font = getTextFont(context.fonts, paragraph.font);
+  const lines = wrapText(
+    paragraph.text,
+    font,
+    size,
+    getContentWidth(paragraph.indent ?? 0)
+  );
+  return lines.length * lineHeight + (paragraph.gapAfter ?? 0);
+}
+
+function drawParagraphs(context: PdfContext, paragraphs: PdfParagraph[]) {
+  const normalized = paragraphs.filter((paragraph) => paragraph.text.trim());
+  if (normalized.length === 0) return;
+
+  const blockHeight = normalized.reduce(
+    (sum, paragraph) => sum + getParagraphHeight(context, paragraph),
+    0
+  );
+  const blockFitsOnePage = blockHeight <= getUsableHeight();
+  if (blockFitsOnePage) ensureSpace(context, blockHeight);
+
+  for (const paragraph of normalized) {
+    const size = paragraph.size ?? 10;
+    const lineHeight = size * 1.45;
+    const indent = paragraph.indent ?? 0;
+    const font = getTextFont(context.fonts, paragraph.font);
+    const lines = wrapText(paragraph.text, font, size, getContentWidth(indent));
+    const paragraphHeight = lines.length * lineHeight + (paragraph.gapAfter ?? 0);
+
+    if (!blockFitsOnePage && paragraphHeight <= getUsableHeight()) {
+      ensureSpace(context, paragraphHeight);
+    }
+
+    for (const line of lines) {
+      ensureSpace(context, lineHeight);
+      context.page.drawText(line, {
+        x: PDF_MARGIN + indent,
+        y: context.y,
+        size,
+        font,
+        color: paragraph.color ?? PDF_TEXT_COLOR,
+      });
+      context.y -= lineHeight;
+    }
+    context.y -= paragraph.gapAfter ?? 0;
+  }
+}
+
+function drawCenteredText(
+  context: PdfContext,
+  text: string,
+  size: number,
+  fontType: 'regular' | 'bold',
+  color = PDF_TEXT_COLOR
+) {
+  if (isBlank(text)) return;
+  const font = getTextFont(context.fonts, fontType);
+  const width = font.widthOfTextAtSize(text, size);
+  context.page.drawText(text, {
+    x: (getPageWidth() - width) / 2,
+    y: context.y,
+    size,
+    font,
+    color,
+  });
+  context.y -= size * 1.45;
+}
+
+function drawDivider(context: PdfContext, gap = 10) {
+  ensureSpace(context, gap + 1);
+  context.page.drawLine({
+    start: { x: PDF_MARGIN, y: context.y },
+    end: { x: getPageWidth() - PDF_MARGIN, y: context.y },
+    thickness: 0.8,
+    color: PDF_LINE_COLOR,
+  });
+  context.y -= gap;
+}
+
+function richTextToExportText(value: RichTextDocument | undefined) {
+  return value ? richTextToPlainText(value).trim() : '';
+}
+
+function drawHeaderSection(context: PdfContext, content: HeaderContent) {
+  ensureSpace(context, 84);
+  drawCenteredText(context, content.name, 22, 'bold');
+  drawCenteredText(context, content.title, 12, 'regular', PDF_ACCENT_COLOR);
+  const contactText = compact([
+    content.email,
+    content.phone,
+    content.location,
+    content.github,
+    content.linkedin,
+    content.website,
+  ]).join(' | ');
+  drawCenteredText(context, contactText, 8.5, 'regular', PDF_MUTED_COLOR);
+  context.y -= 4;
+  drawDivider(context, 14);
+}
+
+function drawSectionTitle(context: PdfContext, title: string) {
+  ensureSpace(context, 38);
+  context.y -= PDF_CONTENT_GAP;
+  context.page.drawText(title, {
+    x: PDF_MARGIN,
+    y: context.y,
+    size: 10,
+    font: context.fonts.bold,
+    color: PDF_MUTED_COLOR,
+  });
+  context.y -= 8;
+  drawDivider(context, 10);
+}
+
+function drawTextSection(
+  context: PdfContext,
+  title: string,
+  text: RichTextDocument | undefined
+) {
+  const content = richTextToExportText(text);
+  if (isBlank(content)) return;
+  drawSectionTitle(context, title);
+  drawParagraphs(context, [{ text: content, size: 9.5 }]);
+  context.y -= PDF_SECTION_GAP;
+}
+
+function drawExperienceSection(context: PdfContext, content: ExperienceContent) {
+  const items = content.items.filter((item) => !isBlank(item.company) || !isBlank(item.role));
+  if (items.length === 0) return;
+
+  drawSectionTitle(context, '경력');
+  for (const item of items) {
+    const meta = compact([
+      [item.startDate, item.endDate].filter(Boolean).join(' - '),
+      item.location,
+    ]).join(' | ');
+    const paragraphs: PdfParagraph[] = [
+      {
+        text: compact([item.company, item.role]).join(' / '),
+        font: 'bold',
+        size: 10.5,
+        gapAfter: 1,
+      },
+      { text: meta, size: 8.5, color: PDF_MUTED_COLOR, gapAfter: 4 },
+    ];
+
+    const projects = item.projects?.filter((project) => !isBlank(project.name)) ?? [];
+    if (projects.length > 0) {
+      projects.forEach((project) => {
+        const projectPeriod = compact([project.startDate, project.endDate]).join(' - ');
+        paragraphs.push({
+          text: compact([project.name, projectPeriod]).join(' | '),
+          font: 'bold',
+          size: 9.3,
+          indent: 10,
+          gapAfter: 2,
+        });
+        if (!isBlank(project.tech)) {
+          paragraphs.push({
+            text: `기술: ${project.tech}`,
+            size: 8.8,
+            indent: 10,
+            color: PDF_MUTED_COLOR,
+          });
+        }
+        [
+          ['문제', project.problem],
+          ['역할', project.ownership],
+          ['성과', project.achievement],
+        ].forEach(([label, value]) => {
+          const text = richTextToExportText(value as RichTextDocument | undefined);
+          if (!isBlank(text)) {
+            paragraphs.push({
+              text: `${label}: ${text}`,
+              size: 9,
+              indent: 10,
+              gapAfter: 2,
+            });
+          }
+        });
+      });
+    } else {
+      if (!isBlank(item.tech)) {
+        paragraphs.push({
+          text: `기술: ${item.tech}`,
+          size: 8.8,
+          color: PDF_MUTED_COLOR,
+        });
+      }
+      [
+        ['설명', item.description],
+        ['문제', item.problem],
+        ['역할', item.ownership],
+        ['성과', item.achievement],
+      ].forEach(([label, value]) => {
+        const text = richTextToExportText(value as RichTextDocument | undefined);
+        if (!isBlank(text)) {
+          paragraphs.push({ text: `${label}: ${text}`, size: 9, gapAfter: 2 });
+        }
+      });
+    }
+
+    drawParagraphs(context, paragraphs);
+    context.y -= PDF_ITEM_GAP;
+  }
+  context.y -= PDF_SECTION_GAP - PDF_ITEM_GAP;
+}
+
+function drawEducationSection(context: PdfContext, content: EducationContent) {
+  const items = content.items.filter((item) => !isBlank(item.school));
+  if (items.length === 0) return;
+
+  drawSectionTitle(context, '학력');
+  for (const item of items) {
+    const major = compact([
+      item.degree,
+      item.field,
+      ...((item.additionalMajors ?? []).map((majorItem) =>
+        compact([majorItem.label, majorItem.field]).join(': ')
+      )),
+      item.highSchoolCategory,
+    ]).join(' / ');
+    const meta = compact([
+      compact([item.startDate, item.endDate]).join(' - '),
+      item.gpa ? `GPA ${item.gpa}/${item.gpaScale ?? '4.5'}` : undefined,
+    ]).join(' | ');
+
+    drawParagraphs(context, [
+      { text: item.school, font: 'bold', size: 10.3, gapAfter: 1 },
+      { text: major, size: 9, color: PDF_MUTED_COLOR, gapAfter: 1 },
+      { text: meta, size: 8.5, color: PDF_MUTED_COLOR },
+    ]);
+    context.y -= PDF_ITEM_GAP;
+  }
+  context.y -= PDF_SECTION_GAP - PDF_ITEM_GAP;
+}
+
+function drawSkillsSection(context: PdfContext, content: SkillsContent) {
+  const categories = content.categories.filter(
+    (category) => !isBlank(category.name) || !isBlank(category.skills)
+  );
+  if (categories.length === 0) return;
+
+  drawSectionTitle(context, '기술');
+  categories.forEach((category) => {
+    drawParagraphs(context, [
+      {
+        text: compact([category.name, category.skills]).join(': '),
+        size: 9.2,
+      },
+    ]);
+  });
+  context.y -= PDF_SECTION_GAP;
+}
+
+function drawProjectsSection(context: PdfContext, content: ProjectsContent) {
+  const items = content.items.filter((item) => !isBlank(item.name));
+  if (items.length === 0) return;
+
+  drawSectionTitle(context, '프로젝트');
+  items.forEach((item) => {
+    drawParagraphs(context, [
+      { text: item.name, font: 'bold', size: 10.3, gapAfter: 2 },
+      {
+        text: compact([item.tech, item.link]).join(' | '),
+        size: 8.7,
+        color: PDF_MUTED_COLOR,
+        gapAfter: 3,
+      },
+      { text: richTextToExportText(item.description), size: 9 },
+    ]);
+    context.y -= PDF_ITEM_GAP;
+  });
+  context.y -= PDF_SECTION_GAP - PDF_ITEM_GAP;
+}
+
+async function createTextPdf(sections: ResumeSection[]) {
+  const document = await PDFDocument.create();
+  document.registerFontkit(fontkit);
+  const [regularFontBytes, boldFontBytes] = await Promise.all([
+    fetch(PDF_REGULAR_FONT_URL).then((response) => response.arrayBuffer()),
+    fetch(PDF_BOLD_FONT_URL).then((response) => response.arrayBuffer()),
+  ]);
+  const fonts: PdfFonts = {
+    regular: await document.embedFont(regularFontBytes, { subset: true }),
+    bold: await document.embedFont(boldFontBytes, { subset: true }),
+  };
+
+  const context: PdfContext = {
+    document,
+    page: document.addPage(PageSizes.A4),
+    fonts,
+    y: getPageHeight() - PDF_MARGIN,
+  };
+
+  sections
+    .filter((section) => section.id)
+    .sort((a, b) => a.order_index - b.order_index)
+    .forEach((section) => {
+      if (section.type === 'header') {
+        drawHeaderSection(context, section.content as HeaderContent);
+      }
+      if (section.type === 'summary') {
+        drawTextSection(context, '자기소개', (section.content as SummaryContent).text);
+      }
+      if (section.type === 'text') {
+        drawTextSection(context, '일반 텍스트', (section.content as TextContent).text);
+      }
+      if (section.type === 'experience') {
+        drawExperienceSection(context, section.content as ExperienceContent);
+      }
+      if (section.type === 'education') {
+        drawEducationSection(context, section.content as EducationContent);
+      }
+      if (section.type === 'skills') {
+        drawSkillsSection(context, section.content as SkillsContent);
+      }
+      if (section.type === 'projects') {
+        drawProjectsSection(context, section.content as ProjectsContent);
+      }
+    });
+
+  return document.save({ useObjectStreams: true });
+}
+
+function downloadBytes(bytes: Uint8Array, fileName: string) {
+  const arrayBuffer = new ArrayBuffer(bytes.byteLength);
+  new Uint8Array(arrayBuffer).set(bytes);
+  const url = URL.createObjectURL(
+    new Blob([arrayBuffer], { type: 'application/pdf' })
+  );
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = fileName;
+  link.click();
+  URL.revokeObjectURL(url);
 }
 
 export function ResumeEditorPage({ resumeId }: Props) {
@@ -346,19 +731,14 @@ export function ResumeEditorPage({ resumeId }: Props) {
   };
 
   const handlePdfExport = useCallback(async () => {
-    const target = document.querySelector(RESUME_EXPORT_SELECTOR);
-    if (!(target instanceof HTMLElement)) return;
-
     setIsExportingPdf(true);
     try {
-      await downloadElementAsPdf(
-        target,
-        getExportFileName(pendingTitle ?? currentResume?.title)
-      );
+      const bytes = await createTextPdf(sections);
+      downloadBytes(bytes, getExportFileName(pendingTitle ?? currentResume?.title));
     } finally {
       setIsExportingPdf(false);
     }
-  }, [currentResume?.title, pendingTitle]);
+  }, [currentResume?.title, pendingTitle, sections]);
 
   if (loading) {
     return (
