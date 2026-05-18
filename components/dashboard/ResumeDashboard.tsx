@@ -52,7 +52,7 @@ export function ResumeDashboard() {
   const [aiCopyCreating, setAiCopyCreating] = useState(false);
   const [aiCopyError, setAiCopyError] = useState('');
 
-  const loadResumes = useCallback(async () => {
+  const loadResumes = useCallback(async ({ claimOrphans = false } = {}) => {
     setLoading(true);
     try {
       const response = await fetch('/api/resumes');
@@ -62,7 +62,22 @@ export function ResumeDashboard() {
         return;
       }
       const data: unknown = await response.json();
-      setResumes(Array.isArray(data) ? (data as Resume[]) : []);
+      const list = Array.isArray(data) ? (data as Resume[]) : [];
+
+      if (list.length === 0 && claimOrphans) {
+        const claimRes = await fetch('/api/resumes/claim', { method: 'POST' });
+        if (claimRes.ok) {
+          const { claimed } = (await claimRes.json()) as { claimed: number };
+          if (claimed > 0) {
+            const retry = await fetch('/api/resumes');
+            const retryData: unknown = await retry.json();
+            setResumes(Array.isArray(retryData) ? (retryData as Resume[]) : []);
+            return;
+          }
+        }
+      }
+
+      setResumes(list);
     } finally {
       setLoading(false);
     }
@@ -86,7 +101,7 @@ export function ResumeDashboard() {
       setUser(currentUser);
       setAuthLoading(false);
       if (currentUser) {
-        void loadResumes();
+        void loadResumes({ claimOrphans: true });
       } else {
         setLoading(false);
       }
@@ -97,7 +112,7 @@ export function ResumeDashboard() {
     } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user ?? null);
       if (session?.user) {
-        void loadResumes();
+        void loadResumes({ claimOrphans: true });
         return;
       }
       setResumes([]);

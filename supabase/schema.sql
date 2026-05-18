@@ -189,3 +189,25 @@ create policy "Users can delete own resume images"
 grant usage on schema public to anon, authenticated;
 grant all on table resumes to authenticated;
 grant all on table resume_sections to authenticated;
+
+-- 고아 이력서 소유권 이전 함수
+-- 현재 로그인한 사용자가 auth.users에 존재하지 않는 user_id를 가진 이력서를 모두 자신의 것으로 가져옵니다.
+create or replace function claim_orphaned_resumes()
+returns integer
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  updated_count integer;
+begin
+  update resumes
+  set user_id = auth.uid()
+  where user_id not in (select id from auth.users);
+
+  get diagnostics updated_count = row_count;
+  return updated_count;
+end;
+$$;
+
+grant execute on function claim_orphaned_resumes() to authenticated;
