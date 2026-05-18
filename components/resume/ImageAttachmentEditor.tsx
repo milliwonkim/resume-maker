@@ -399,43 +399,45 @@ export function ImageAttachmentEditor({
         </div>
       )}
 
+      {/* 업로드 중 스피너 – focus 상태와 무관하게 항상 표시 */}
+      {isUploading && (
+        <div className="no-print mt-2 flex items-center gap-1.5 text-xs text-sky-600">
+          <SpinnerIcon />
+          업로드 중...
+        </div>
+      )}
+
       {/* Upload button / drop zone */}
-      <div className="no-print resume-action-buttons mt-2 gap-1">
-        <label
-          className={[
-            'inline-flex cursor-pointer select-none items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs transition-colors touch-manipulation',
-            isUploading
-              ? 'cursor-wait border-gray-200 text-gray-400'
-              : isDragOver
+      {!isUploading && (
+        <div className="no-print resume-action-buttons mt-2 gap-1">
+          <label
+            className={[
+              'inline-flex cursor-pointer select-none items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs transition-colors touch-manipulation',
+              isDragOver
                 ? 'border-blue-400 bg-blue-50 text-blue-600'
                 : 'border-sky-200 text-sky-600 hover:bg-sky-50 active:bg-sky-100',
-          ].join(' ')}
-          onDragOver={handleDropZoneDragOver}
-          onDragLeave={handleDropZoneDragLeave}
-          onDrop={handleDropZoneDrop}
-        >
-          {isUploading ? (
-            <>
-              <SpinnerIcon />
-              업로드 중...
-            </>
-          ) : isDragOver ? (
-            '여기에 놓으세요'
-          ) : (
-            <>
-              <UploadIcon />+ {addLabel}
-            </>
-          )}
-          <input
-            type="file"
-            accept="image/*"
-            multiple
-            className="hidden"
-            disabled={isUploading}
-            onChange={handleAdd}
-          />
-        </label>
-      </div>
+            ].join(' ')}
+            onDragOver={handleDropZoneDragOver}
+            onDragLeave={handleDropZoneDragLeave}
+            onDrop={handleDropZoneDrop}
+          >
+            {isDragOver ? (
+              '여기에 놓으세요'
+            ) : (
+              <>
+                <UploadIcon />+ {addLabel}
+              </>
+            )}
+            <input
+              type="file"
+              accept="image/*"
+              multiple
+              className="hidden"
+              onChange={handleAdd}
+            />
+          </label>
+        </div>
+      )}
 
       {error && <p className="no-print mt-1 text-xs text-red-500">{error}</p>}
     </div>
