@@ -511,7 +511,7 @@ export const ResumeEditor = forwardRef<ResumeEditorRef, Props>(
           {visibleSections.map((section, index) => (
             <div
               key={section.id}
-              className={`relative rounded-lg pt-10 transition-all sm:pt-8 ${
+              className={`resume-section-wrapper relative rounded-lg pt-10 transition-all print:pt-0 sm:pt-8 ${
                 draggedSectionId === section.id ? 'opacity-50' : ''
               } ${
                 dropTargetSectionId === section.id &&

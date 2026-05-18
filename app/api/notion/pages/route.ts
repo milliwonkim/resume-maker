@@ -21,18 +21,6 @@ interface NotionBlocksResponse {
   next_cursor: string | null;
 }
 
-interface DatabasePage {
-  id: string;
-  object: string;
-  properties: Record<string, NotionProperty>;
-}
-
-interface DatabaseQueryResponse {
-  results: DatabasePage[];
-  has_more: boolean;
-  next_cursor: string | null;
-}
-
 interface NotionProperty {
   type: string;
   title?: RichText[];
@@ -59,12 +47,6 @@ interface NotionProperty {
 interface NotionPageResponse {
   id: string;
   properties: Record<string, NotionProperty>;
-}
-
-interface NotionDatabaseResponse {
-  id: string;
-  title: RichText[];
-  properties: Record<string, { name: string; type: string }>;
 }
 
 function notionHeaders(token: string): HeadersInit {
@@ -100,115 +82,6 @@ async function fetchAllBlocks(
 
 function extractRichText(richText: RichText[]): string {
   return richText.map((t) => t.plain_text).join('');
-}
-
-function extractPropertyValue(prop: NotionProperty): string {
-  switch (prop.type) {
-    case 'title':
-      return extractRichText(prop.title ?? []);
-    case 'rich_text':
-      return extractRichText(prop.rich_text ?? []);
-    case 'number':
-      return prop.number !== null && prop.number !== undefined
-        ? String(prop.number)
-        : '';
-    case 'select':
-      return prop.select?.name ?? '';
-    case 'multi_select':
-      return (prop.multi_select ?? []).map((s) => s.name).join(', ');
-    case 'status':
-      return prop.status?.name ?? '';
-    case 'date': {
-      if (!prop.date) return '';
-      return prop.date.end
-        ? `${prop.date.start} ~ ${prop.date.end}`
-        : prop.date.start;
-    }
-    case 'checkbox':
-      return prop.checkbox ? '✓' : '✗';
-    case 'url':
-      return prop.url ?? '';
-    case 'email':
-      return prop.email ?? '';
-    case 'phone_number':
-      return prop.phone_number ?? '';
-    case 'people':
-      return (prop.people ?? [])
-        .map((p) => p.name ?? '')
-        .filter(Boolean)
-        .join(', ');
-    case 'relation':
-      return (prop.relation ?? []).length > 0
-        ? `[관계 ${(prop.relation ?? []).length}개]`
-        : '';
-    case 'formula': {
-      const f = prop.formula;
-      if (!f) return '';
-      if (f.type === 'string') return f.string ?? '';
-      if (f.type === 'number')
-        return f.number !== undefined ? String(f.number) : '';
-      if (f.type === 'boolean') return f.boolean ? '✓' : '✗';
-      return '';
-    }
-    default:
-      return '';
-  }
-}
-
-async function queryDatabase(
-  databaseId: string,
-  token: string
-): Promise<string> {
-  // Fetch schema for property order
-  const schemaRes = await fetch(
-    `https://api.notion.com/v1/databases/${databaseId}`,
-    {
-      headers: notionHeaders(token),
-    }
-  );
-
-  let propOrder: string[] = [];
-  if (schemaRes.ok) {
-    const schema = (await schemaRes.json()) as NotionDatabaseResponse;
-    propOrder = Object.keys(schema.properties);
-  }
-
-  const rows: string[] = [];
-  let cursor: string | null = null;
-
-  do {
-    const res = await fetch(
-      `https://api.notion.com/v1/databases/${databaseId}/query`,
-      {
-        method: 'POST',
-        headers: notionHeaders(token),
-        body: JSON.stringify({
-          page_size: 100,
-          ...(cursor ? { start_cursor: cursor } : {}),
-        }),
-      }
-    );
-    if (!res.ok) break;
-
-    const data = (await res.json()) as DatabaseQueryResponse;
-
-    for (const page of data.results) {
-      const orderedProps =
-        propOrder.length > 0
-          ? propOrder.map((key) => page.properties[key]).filter(Boolean)
-          : Object.values(page.properties);
-
-      const parts = orderedProps
-        .map((prop) => extractPropertyValue(prop))
-        .filter(Boolean);
-
-      if (parts.length > 0) rows.push(parts.join(' | '));
-    }
-
-    cursor = data.has_more ? data.next_cursor : null;
-  } while (cursor);
-
-  return rows.join('\n');
 }
 
 async function processBlock(
@@ -316,8 +189,7 @@ async function processBlock(
     }
     case 'child_database': {
       const title = (content?.title as string) ?? '(제목 없음)';
-      const rows = await queryDatabase(block.id, token);
-      text = `\n${indent}[데이터베이스: ${title}]\n${rows}`;
+      text = `\n${indent}[데이터베이스: ${title}]`;
       return text;
     }
     case 'link_to_page': {
@@ -385,43 +257,28 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    // Determine if this is a page or a database
-    const [pageRes, dbRes] = await Promise.all([
-      fetch(`https://api.notion.com/v1/pages/${pageId}`, {
-        headers: notionHeaders(token),
-      }),
-      fetch(`https://api.notion.com/v1/databases/${pageId}`, {
-        headers: notionHeaders(token),
-      }),
-    ]);
+    const pageRes = await fetch(`https://api.notion.com/v1/pages/${pageId}`, {
+      headers: notionHeaders(token),
+    });
 
-    if (!pageRes.ok && !dbRes.ok) {
+    if (!pageRes.ok) {
       return Response.json(
-        { error: '페이지 또는 데이터베이스를 찾을 수 없습니다.' },
+        { error: '페이지를 찾을 수 없습니다.' },
         { status: 404 }
       );
     }
 
     let text = '';
+    const page = (await pageRes.json()) as NotionPageResponse;
+    const titleProp = Object.values(page.properties).find(
+      (p) => p.type === 'title'
+    );
+    const title = titleProp?.title?.map((t) => t.plain_text).join('') ?? '';
+    if (title) text += `# ${title}\n\n`;
 
-    if (pageRes.ok) {
-      const page = (await pageRes.json()) as NotionPageResponse;
-      const titleProp = Object.values(page.properties).find(
-        (p) => p.type === 'title'
-      );
-      const title = titleProp?.title?.map((t) => t.plain_text).join('') ?? '';
-      if (title) text += `# ${title}\n\n`;
-
-      const blocks = await fetchAllBlocks(pageId, token);
-      const body = await processBlocks(blocks, token, 0);
-      text += body;
-    } else if (dbRes.ok) {
-      const db = (await dbRes.json()) as NotionDatabaseResponse;
-      const title =
-        db.title?.map((t) => t.plain_text).join('') ?? '데이터베이스';
-      text = `# ${title}\n\n`;
-      text += await queryDatabase(pageId, token);
-    }
+    const blocks = await fetchAllBlocks(pageId, token);
+    const body = await processBlocks(blocks, token, 0);
+    text += body;
 
     return Response.json({ text: text.trim() });
   } catch (err) {

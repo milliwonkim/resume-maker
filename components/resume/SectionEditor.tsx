@@ -195,7 +195,7 @@ export function SectionEditor({
       )}
 
       {/* Section content */}
-      <div className="py-2">{renderContent()}</div>
+      <div className="py-2 print:py-0">{renderContent()}</div>
 
       <LayoutPicker
         sectionType={section.type}

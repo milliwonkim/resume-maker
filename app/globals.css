@@ -92,6 +92,11 @@ body {
 
 /* Print styles */
 @media print {
+  @page {
+    size: A4;
+    margin: 12mm;
+  }
+
   header,
   .no-print {
     display: none !important;
@@ -100,6 +105,8 @@ body {
   html,
   body {
     background: white;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
   }
 
   .resume-editor-shell {
@@ -119,7 +126,13 @@ body {
     margin: 0 !important;
     border-radius: 0 !important;
     box-shadow: none !important;
-    padding: 0.5in !important;
+    padding: 0 !important;
+  }
+
+  .resume-section-wrapper {
+    break-inside: avoid;
+    page-break-inside: avoid;
+    padding-top: 0 !important;
   }
 
   .resume-print-root *,
@@ -129,6 +142,10 @@ body {
   }
 
   .rich-text-field p.is-editor-empty:first-child::before {
+    content: '' !important;
+  }
+
+  [contenteditable]:empty::before {
     content: '' !important;
   }
 }

@@ -1,6 +1,6 @@
 -- ============================================================
 -- Resume Builder Schema (Supabase)
--- Supabase 기본 bigint ID를 사용하고, Notion 본문/섹션 content를 그대로 보존합니다.
+-- Supabase 기본 bigint ID를 사용하고, 섹션 content는 compact JSON 형태로 저장합니다.
 -- ============================================================
 
 -- resumes 테이블 재생성

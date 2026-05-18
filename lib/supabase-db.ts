@@ -4,7 +4,7 @@ import type {
   SectionContent,
   SectionType,
 } from './types';
-import { normalizeSectionContent } from './rich-text';
+import { compactSectionContent, normalizeSectionContent } from './rich-text';
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -23,7 +23,7 @@ interface DbResumeSection {
   resume_id: DbId;
   type: SectionType;
   layout: string;
-  content: SectionContent;
+  content: unknown;
   order_index: number;
   created_at: string;
   updated_at: string;
@@ -176,7 +176,7 @@ export async function createSection(
       resume_id: resumeId,
       type,
       layout,
-      content: normalizeSectionContent(type, content),
+      content: compactSectionContent(type, content),
       order_index: orderIndex,
       created_at: now,
       updated_at: now,
@@ -215,7 +215,7 @@ export async function updateSectionContent(
     {
       method: 'PATCH',
       prefer: 'return=minimal',
-      body: { content: normalizeSectionContent(type, content) },
+      body: { content: compactSectionContent(type, content) },
     }
   );
 }
@@ -274,7 +274,7 @@ async function insertSections(
       resume_id: resumeId,
       type: section.type,
       layout: section.layout,
-      content: normalizeSectionContent(section.type, section.content),
+      content: compactSectionContent(section.type, section.content),
       order_index: section.order_index,
       created_at: section.created_at,
       updated_at: section.updated_at,

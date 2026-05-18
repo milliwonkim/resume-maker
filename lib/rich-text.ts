@@ -1,5 +1,6 @@
 import type {
   EducationContent,
+  EducationAdditionalMajor,
   EducationItem,
   ExperienceContent,
   ExperienceItem,
@@ -9,9 +10,11 @@ import type {
   ProjectsContent,
   RichTextDocument,
   RichTextMark,
+  RichTextMarkType,
   RichTextNode,
   SectionContent,
   SectionType,
+  SkillCategory,
   SkillsContent,
   SummaryContent,
   TextContent,
@@ -37,6 +40,12 @@ const MARK_PATTERNS = [
   { marker: '~~', type: 'strike' },
   { marker: '*', type: 'italic' },
 ] as const;
+const MARK_WRAPPERS: Record<RichTextMarkType, string> = {
+  bold: '**',
+  italic: '*',
+  strike: '~~',
+  underline: '++',
+};
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -439,4 +448,176 @@ export function richTextToPlainText(value: RichTextDocument): string {
 
 export function isEmptyRichText(value: RichTextDocument | undefined): boolean {
   return !value || richTextToPlainText(value).trim() === '';
+}
+
+function richTextNodeToMarkdown(node: RichTextNode, index = 0): string {
+  if (node.type === 'text') {
+    const text = node.text ?? '';
+    if (!node.marks || node.marks.length === 0) return text;
+    return node.marks.reduce((value, mark) => {
+      const wrapper = MARK_WRAPPERS[mark.type];
+      return `${wrapper}${value}${wrapper}`;
+    }, text);
+  }
+
+  if (node.type === 'hardBreak') return '\n';
+
+  const content = node.content?.map((child, childIndex) =>
+    richTextNodeToMarkdown(child, childIndex)
+  ) ?? [];
+
+  if (node.type === 'bulletList') {
+    return content.map((item) => `- ${item.trim()}`).join('\n');
+  }
+
+  if (node.type === 'orderedList') {
+    return content
+      .map((item, itemIndex) => `${itemIndex + 1}. ${item.trim()}`)
+      .join('\n');
+  }
+
+  if (node.type === 'listItem') {
+    return content.join('\n').trim();
+  }
+
+  if (node.type === 'paragraph') {
+    return content.join('');
+  }
+
+  return content.join(index > 0 ? '\n' : '');
+}
+
+export function richTextToMarkdown(value: RichTextDocument | undefined): string {
+  if (!value) return '';
+  return value.content
+    .map((node, index) => richTextNodeToMarkdown(node, index))
+    .filter((content) => content.trim() !== '')
+    .join('\n')
+    .trim();
+}
+
+function compactHeaderContent(content: HeaderContent): HeaderContent {
+  return {
+    name: content.name,
+    title: content.title,
+    email: content.email,
+    phone: content.phone,
+    location: content.location,
+    linkedin: content.linkedin,
+    github: content.github,
+    website: content.website,
+  };
+}
+
+function compactExperienceProject(
+  project: ExperienceProject
+): Record<string, string> {
+  return {
+    id: project.id,
+    name: project.name,
+    startDate: project.startDate ?? '',
+    endDate: project.endDate ?? '',
+    tech: project.tech ?? '',
+    problem: richTextToMarkdown(project.problem),
+    ownership: richTextToMarkdown(project.ownership),
+    achievement: richTextToMarkdown(project.achievement),
+  };
+}
+
+function compactExperienceItem(item: ExperienceItem): Record<string, unknown> {
+  return {
+    id: item.id,
+    company: item.company,
+    role: item.role,
+    location: item.location,
+    startDate: item.startDate,
+    endDate: item.endDate,
+    projects: item.projects?.map(compactExperienceProject) ?? [],
+    tech: item.tech ?? '',
+    problem: richTextToMarkdown(item.problem),
+    ownership: richTextToMarkdown(item.ownership),
+    achievement: richTextToMarkdown(item.achievement),
+    description: richTextToMarkdown(item.description),
+  };
+}
+
+function compactEducationAdditionalMajor(
+  major: EducationAdditionalMajor
+): EducationAdditionalMajor {
+  return {
+    id: major.id,
+    label: major.label,
+    field: major.field,
+  };
+}
+
+function compactEducationItem(item: EducationItem): Record<string, unknown> {
+  return {
+    id: item.id,
+    schoolType: item.schoolType,
+    school: item.school,
+    degree: item.degree ?? '',
+    field: item.field ?? '',
+    additionalMajors:
+      item.additionalMajors?.map(compactEducationAdditionalMajor) ?? [],
+    highSchoolCategory: item.highSchoolCategory ?? '',
+    startDate: item.startDate,
+    endDate: item.endDate,
+    gpa: item.gpa ?? '',
+    gpaScale: item.gpaScale ?? '4.5',
+  };
+}
+
+function compactSkillCategory(category: SkillCategory): SkillCategory {
+  return {
+    id: category.id,
+    name: category.name,
+    skills: category.skills,
+  };
+}
+
+function compactProjectItem(item: ProjectItem): Record<string, string> {
+  return {
+    id: item.id,
+    name: item.name,
+    description: richTextToMarkdown(item.description),
+    tech: item.tech,
+    link: item.link ?? '',
+  };
+}
+
+export function compactSectionContent(
+  sectionType: SectionType,
+  content: SectionContent
+): unknown {
+  const normalized = normalizeSectionContent(sectionType, content);
+
+  if (sectionType === 'header') {
+    return compactHeaderContent(normalized as HeaderContent);
+  }
+
+  if (sectionType === 'summary' || sectionType === 'text') {
+    const richTextContent = normalized as SummaryContent | TextContent;
+    return { text: richTextToMarkdown(richTextContent.text) };
+  }
+
+  if (sectionType === 'experience') {
+    const experienceContent = normalized as ExperienceContent;
+    return { items: experienceContent.items.map(compactExperienceItem) };
+  }
+
+  if (sectionType === 'education') {
+    const educationContent = normalized as EducationContent;
+    return { items: educationContent.items.map(compactEducationItem) };
+  }
+
+  if (sectionType === 'skills') {
+    const skillsContent = normalized as SkillsContent;
+    return {
+      categories: skillsContent.categories.map(compactSkillCategory),
+    };
+  }
+
+  const projectsContent = normalized as ProjectsContent;
+  return { items: projectsContent.items.map(compactProjectItem) };
 }

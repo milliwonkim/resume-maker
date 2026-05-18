@@ -246,6 +246,10 @@ export function ResumeEditorPage({ resumeId }: Props) {
     leavePage();
   };
 
+  const handlePdfExport = useCallback(() => {
+    window.print();
+  }, []);
+
   if (loading) {
     return (
       <div className="flex h-screen items-center justify-center text-gray-400">
@@ -393,11 +397,11 @@ export function ResumeEditorPage({ resumeId }: Props) {
 
             <button
               type="button"
-              onClick={() => window.print()}
+              onClick={handlePdfExport}
               className="rounded-lg bg-gray-900 px-3 py-1.5 text-xs font-medium whitespace-nowrap text-white transition-colors hover:bg-gray-700 sm:px-4 sm:text-sm"
             >
               <span className="sm:hidden">PDF</span>
-              <span className="hidden sm:inline">인쇄 / PDF</span>
+              <span className="hidden sm:inline">PDF 출력</span>
             </button>
           </div>
         </div>
