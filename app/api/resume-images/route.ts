@@ -57,14 +57,20 @@ export async function POST(request: NextRequest) {
 
     const supabase = await createServerSupabaseClient();
     const path = getUploadPath(auth.id, file);
-    const { error } = await supabase.storage
+    const { error: uploadError } = await supabase.storage
       .from(RESUME_IMAGES_BUCKET)
       .upload(path, file, {
         contentType: file.type,
         upsert: false,
       });
 
-    if (error) throw error;
+    if (uploadError) {
+      console.error('[resume-images] storage upload error:', uploadError);
+      return Response.json(
+        { error: uploadError.message || '사진을 업로드하지 못했습니다.' },
+        { status: 500 }
+      );
+    }
 
     const { data } = supabase.storage
       .from(RESUME_IMAGES_BUCKET)
@@ -79,11 +85,9 @@ export async function POST(request: NextRequest) {
 
     return Response.json({ image }, { status: 201 });
   } catch (error) {
-    console.error(error);
-    return Response.json(
-      { error: '사진을 Supabase에 업로드하지 못했습니다.' },
-      { status: 500 }
-    );
+    const message = error instanceof Error ? error.message : '알 수 없는 오류가 발생했습니다.';
+    console.error('[resume-images] unexpected error:', message);
+    return Response.json({ error: message }, { status: 500 });
   }
 }
 
