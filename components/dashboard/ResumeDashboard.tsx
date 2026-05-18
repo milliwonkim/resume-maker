@@ -3,8 +3,10 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Dialog } from '@base-ui/react';
-import { useResumeStore } from '@/store/resume';
+
+import { SettingsDialog } from '@/components/settings/SettingsDialog';
 import type { Resume } from '@/lib/types';
+import { useResumeStore } from '@/store/resume';
 
 function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString('ko-KR', {
@@ -21,6 +23,7 @@ export function ResumeDashboard() {
   const [creating, setCreating] = useState(false);
   const [newTitle, setNewTitle] = useState('');
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Resume | null>(null);
 
   useEffect(() => {
@@ -71,44 +74,54 @@ export function ResumeDashboard() {
               나만의 이력서를 만들어보세요
             </p>
           </div>
-          <Dialog.Root open={dialogOpen} onOpenChange={setDialogOpen}>
-            <Dialog.Trigger className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700">
-              <span className="text-base leading-none">+</span>새 이력서
-            </Dialog.Trigger>
-            <Dialog.Portal>
-              <Dialog.Backdrop className="fixed inset-0 z-40 bg-black/30 backdrop-blur-sm" />
-              <Dialog.Popup className="fixed top-1/2 left-1/2 z-50 w-[calc(100%-2rem)] max-w-sm -translate-x-1/2 -translate-y-1/2 rounded-xl bg-white p-5 shadow-2xl sm:p-6">
-                <Dialog.Title className="mb-1 text-lg font-semibold text-gray-900">
-                  새 이력서 만들기
-                </Dialog.Title>
-                <Dialog.Description className="mb-4 text-sm text-gray-500">
-                  이력서 제목을 입력하세요.
-                </Dialog.Description>
-                <input
-                  type="text"
-                  value={newTitle}
-                  onChange={(e) => setNewTitle(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && handleCreate()}
-                  placeholder="예: 프론트엔드 개발자 이력서"
-                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none"
-                  autoFocus
-                />
-                <div className="mt-4 flex justify-end gap-2">
-                  <Dialog.Close className="rounded-lg border border-gray-200 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50">
-                    취소
-                  </Dialog.Close>
-                  <button
-                    type="button"
-                    onClick={handleCreate}
-                    disabled={creating}
-                    className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:opacity-50"
-                  >
-                    {creating ? '생성 중...' : '만들기'}
-                  </button>
-                </div>
-              </Dialog.Popup>
-            </Dialog.Portal>
-          </Dialog.Root>
+          <div className="flex shrink-0 items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setSettingsOpen(true)}
+              className="rounded-lg border border-gray-200 px-3 py-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-50 hover:text-gray-900"
+              title="설정"
+            >
+              설정
+            </button>
+            <Dialog.Root open={dialogOpen} onOpenChange={setDialogOpen}>
+              <Dialog.Trigger className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700">
+                <span className="text-base leading-none">+</span>새 이력서
+              </Dialog.Trigger>
+              <Dialog.Portal>
+                <Dialog.Backdrop className="fixed inset-0 z-40 bg-black/30 backdrop-blur-sm" />
+                <Dialog.Popup className="fixed top-1/2 left-1/2 z-50 w-[calc(100%-2rem)] max-w-sm -translate-x-1/2 -translate-y-1/2 rounded-xl bg-white p-5 shadow-2xl sm:p-6">
+                  <Dialog.Title className="mb-1 text-lg font-semibold text-gray-900">
+                    새 이력서 만들기
+                  </Dialog.Title>
+                  <Dialog.Description className="mb-4 text-sm text-gray-500">
+                    이력서 제목을 입력하세요.
+                  </Dialog.Description>
+                  <input
+                    type="text"
+                    value={newTitle}
+                    onChange={(e) => setNewTitle(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && handleCreate()}
+                    placeholder="예: 프론트엔드 개발자 이력서"
+                    className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none"
+                    autoFocus
+                  />
+                  <div className="mt-4 flex justify-end gap-2">
+                    <Dialog.Close className="rounded-lg border border-gray-200 px-4 py-2 text-sm text-gray-600 hover:bg-gray-50">
+                      취소
+                    </Dialog.Close>
+                    <button
+                      type="button"
+                      onClick={handleCreate}
+                      disabled={creating}
+                      className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:opacity-50"
+                    >
+                      {creating ? '생성 중...' : '만들기'}
+                    </button>
+                  </div>
+                </Dialog.Popup>
+              </Dialog.Portal>
+            </Dialog.Root>
+          </div>
         </div>
       </header>
 
@@ -193,6 +206,10 @@ export function ResumeDashboard() {
           </div>
         )}
       </main>
+
+      {settingsOpen && (
+        <SettingsDialog onClose={() => setSettingsOpen(false)} />
+      )}
 
       {/* Delete confirmation */}
       <Dialog.Root
