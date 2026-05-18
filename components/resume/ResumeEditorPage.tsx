@@ -1,7 +1,10 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { toPng } from 'html-to-image';
+import { jsPDF } from 'jspdf';
 import { useRouter } from 'next/navigation';
+
 import { useResumeStore } from '@/store/resume';
 import { useAIStore } from '@/store/ai';
 import { useAIJobsStore, type AIJob } from '@/store/ai-jobs';
@@ -13,6 +16,101 @@ import type { Resume } from '@/lib/types';
 
 interface Props {
   resumeId: string;
+}
+
+const RESUME_EXPORT_SELECTOR = '.resume-print-root';
+const PDF_EXPORT_CLASS = 'is-pdf-exporting';
+const PDF_FILE_EXTENSION = 'pdf';
+const PDF_IMAGE_FORMAT = 'PNG';
+const PDF_IMAGE_COMPRESSION = 'FAST';
+const PDF_EXPORT_PIXEL_RATIO = 2;
+const PDF_PAGE_WIDTH_MM = 210;
+const PDF_PAGE_HEIGHT_MM = 297;
+const FILE_NAME_FORBIDDEN_CHARS = /[\\/:*?"<>|]+/g;
+
+function getExportFileName(title: string | undefined) {
+  const name = (title?.trim() || 'resume')
+    .replace(FILE_NAME_FORBIDDEN_CHARS, '-')
+    .replace(/\s+/g, '-');
+  return `${name}.${PDF_FILE_EXTENSION}`;
+}
+
+function shouldRenderPdfNode(node: HTMLElement) {
+  if (!(node instanceof Element)) return true;
+  return !node.closest('.no-print, .rich-text-toolbar');
+}
+
+function waitForExportStyles() {
+  return new Promise<void>((resolve) => {
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => resolve());
+    });
+  });
+}
+
+function loadImage(src: string) {
+  return new Promise<HTMLImageElement>((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => resolve(image);
+    image.onerror = () => reject(new Error('PDF 이미지를 만들지 못했습니다.'));
+    image.src = src;
+  });
+}
+
+async function downloadElementAsPdf(element: HTMLElement, fileName: string) {
+  document.documentElement.classList.add(PDF_EXPORT_CLASS);
+
+  try {
+    await document.fonts.ready;
+    await waitForExportStyles();
+
+    const imageData = await toPng(element, {
+      backgroundColor: '#ffffff',
+      cacheBust: true,
+      pixelRatio: PDF_EXPORT_PIXEL_RATIO,
+      filter: shouldRenderPdfNode,
+    });
+    const image = await loadImage(imageData);
+    const pdf = new jsPDF({
+      orientation: 'portrait',
+      unit: 'mm',
+      format: 'a4',
+    });
+
+    const imageHeightMm =
+      (image.height * PDF_PAGE_WIDTH_MM) / image.width;
+    let y = 0;
+
+    pdf.addImage(
+      imageData,
+      PDF_IMAGE_FORMAT,
+      0,
+      y,
+      PDF_PAGE_WIDTH_MM,
+      imageHeightMm,
+      undefined,
+      PDF_IMAGE_COMPRESSION
+    );
+
+    while (Math.abs(y) + PDF_PAGE_HEIGHT_MM < imageHeightMm) {
+      y -= PDF_PAGE_HEIGHT_MM;
+      pdf.addPage();
+      pdf.addImage(
+        imageData,
+        PDF_IMAGE_FORMAT,
+        0,
+        y,
+        PDF_PAGE_WIDTH_MM,
+        imageHeightMm,
+        undefined,
+        PDF_IMAGE_COMPRESSION
+      );
+    }
+
+    pdf.save(fileName);
+  } finally {
+    document.documentElement.classList.remove(PDF_EXPORT_CLASS);
+  }
 }
 
 export function ResumeEditorPage({ resumeId }: Props) {
@@ -46,6 +144,7 @@ export function ResumeEditorPage({ resumeId }: Props) {
   const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
   const [leaveTarget, setLeaveTarget] = useState<'list' | 'history'>('list');
   const [isManuallySaving, setIsManuallySaving] = useState(false);
+  const [isExportingPdf, setIsExportingPdf] = useState(false);
 
   const titleRef = useRef<HTMLInputElement>(null);
   const editorRef = useRef<ResumeEditorRef>(null);
@@ -246,9 +345,20 @@ export function ResumeEditorPage({ resumeId }: Props) {
     leavePage();
   };
 
-  const handlePdfExport = useCallback(() => {
-    window.print();
-  }, []);
+  const handlePdfExport = useCallback(async () => {
+    const target = document.querySelector(RESUME_EXPORT_SELECTOR);
+    if (!(target instanceof HTMLElement)) return;
+
+    setIsExportingPdf(true);
+    try {
+      await downloadElementAsPdf(
+        target,
+        getExportFileName(pendingTitle ?? currentResume?.title)
+      );
+    } finally {
+      setIsExportingPdf(false);
+    }
+  }, [currentResume?.title, pendingTitle]);
 
   if (loading) {
     return (
@@ -397,11 +507,16 @@ export function ResumeEditorPage({ resumeId }: Props) {
 
             <button
               type="button"
-              onClick={handlePdfExport}
-              className="rounded-lg bg-gray-900 px-3 py-1.5 text-xs font-medium whitespace-nowrap text-white transition-colors hover:bg-gray-700 sm:px-4 sm:text-sm"
+              onClick={() => {
+                void handlePdfExport();
+              }}
+              disabled={isExportingPdf}
+              className="rounded-lg bg-gray-900 px-3 py-1.5 text-xs font-medium whitespace-nowrap text-white transition-colors hover:bg-gray-700 disabled:cursor-not-allowed disabled:bg-gray-300 sm:px-4 sm:text-sm"
             >
               <span className="sm:hidden">PDF</span>
-              <span className="hidden sm:inline">PDF 출력</span>
+              <span className="hidden sm:inline">
+                {isExportingPdf ? 'PDF 생성 중' : 'PDF 저장'}
+              </span>
             </button>
           </div>
         </div>
