@@ -98,6 +98,7 @@ body {
   }
 
   header,
+  .rich-text-toolbar,
   .no-print {
     display: none !important;
   }
