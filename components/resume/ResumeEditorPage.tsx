@@ -758,7 +758,7 @@ export function ResumeEditorPage({ resumeId }: Props) {
             onClick={handleBackClick}
             className="flex shrink-0 items-center gap-1 text-sm text-gray-500 hover:text-gray-900"
           >
-            ← <span className="hidden sm:inline">목록</span>
+            ← <span className="hidden sm:inline">Home</span>
           </button>
 
           <div className="h-4 w-px shrink-0 bg-gray-200" />

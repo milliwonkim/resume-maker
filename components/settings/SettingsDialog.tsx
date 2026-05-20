@@ -188,7 +188,7 @@ export function SettingsDialog({ onClose }: Props) {
                   className="w-full rounded-lg border border-gray-200 px-3 py-2 font-mono text-sm focus:ring-2 focus:ring-violet-300 focus:outline-none"
                 />
                 <p className="mt-1 text-xs text-gray-400">
-                  이 기기 로컬에만 저장됩니다.
+                  이 브라우저의 쿠키에 저장됩니다.
                 </p>
               </div>
 

@@ -1,7 +1,41 @@
 'use client';
 
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { createJSONStorage, persist, type StateStorage } from 'zustand/middleware';
+
+const SETTINGS_COOKIE_MAX_AGE = 60 * 60 * 24 * 365;
+
+function getCookieStorage(): StateStorage {
+  return {
+    getItem: (name) => {
+      if (typeof document === 'undefined') return null;
+
+      const prefix = `${encodeURIComponent(name)}=`;
+      const cookie = document.cookie
+        .split('; ')
+        .find((item) => item.startsWith(prefix));
+
+      if (cookie) return decodeURIComponent(cookie.slice(prefix.length));
+
+      return window.localStorage.getItem(name);
+    },
+    setItem: (name, value) => {
+      if (typeof document === 'undefined') return;
+
+      const secure = window.location.protocol === 'https:' ? '; Secure' : '';
+      document.cookie = `${encodeURIComponent(name)}=${encodeURIComponent(
+        value
+      )}; Max-Age=${SETTINGS_COOKIE_MAX_AGE}; Path=/; SameSite=Lax${secure}`;
+      window.localStorage.removeItem(name);
+    },
+    removeItem: (name) => {
+      if (typeof document === 'undefined') return;
+
+      document.cookie = `${encodeURIComponent(name)}=; Max-Age=0; Path=/; SameSite=Lax`;
+      window.localStorage.removeItem(name);
+    },
+  };
+}
 
 interface AIStore {
   rules: string;
@@ -16,8 +50,16 @@ interface AIStore {
   setAutoSave: (v: boolean) => void;
 }
 
+interface PersistedAIStore {
+  rules: string;
+  geminiKey: string;
+  geminiModel: string;
+  notionPageUrl: string;
+  autoSave: boolean;
+}
+
 export const useAIStore = create<AIStore>()(
-  persist(
+  persist<AIStore, [], [], PersistedAIStore>(
     (set) => ({
       rules: `- 한국어로 작성할 것
 - 전문적이고 신뢰감 있는 어조 유지
@@ -36,6 +78,16 @@ export const useAIStore = create<AIStore>()(
       setNotionPageUrl: (notionPageUrl) => set({ notionPageUrl }),
       setAutoSave: (autoSave) => set({ autoSave }),
     }),
-    { name: 'ai-settings' }
+    {
+      name: 'ai-settings',
+      storage: createJSONStorage(() => getCookieStorage()),
+      partialize: (state) => ({
+        rules: state.rules,
+        geminiKey: state.geminiKey,
+        geminiModel: state.geminiModel,
+        notionPageUrl: state.notionPageUrl,
+        autoSave: state.autoSave,
+      }),
+    }
   )
 );

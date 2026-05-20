@@ -35,15 +35,24 @@ export function ResumeDashboard() {
   const [user, setUser] = useState<User | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [authError, setAuthError] = useState(
-    searchParams.get('auth_error') ? '구글 로그인에 실패했습니다. 다시 시도해주세요.' : ''
+    searchParams.get('auth_error')
+      ? '구글 로그인에 실패했습니다. 다시 시도해주세요.'
+      : ''
   );
   const [loading, setLoading] = useState(true);
   const [signingIn, setSigningIn] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
+  const [emailMode, setEmailMode] = useState<'signin' | 'signup'>('signin');
+  const [emailInput, setEmailInput] = useState('');
+  const [passwordInput, setPasswordInput] = useState('');
+  const [emailLoading, setEmailLoading] = useState(false);
+  const [emailError, setEmailError] = useState('');
+  const [emailSent, setEmailSent] = useState(false);
   const [creating, setCreating] = useState(false);
   const [newTitle, setNewTitle] = useState('');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [navigatingId, setNavigatingId] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Resume | null>(null);
   const [aiCopyTarget, setAiCopyTarget] = useState<Resume | null>(null);
   const [aiCopyTitle, setAiCopyTitle] = useState('');
@@ -52,36 +61,43 @@ export function ResumeDashboard() {
   const [aiCopyCreating, setAiCopyCreating] = useState(false);
   const [aiCopyError, setAiCopyError] = useState('');
 
-  const loadResumes = useCallback(async ({ claimOrphans = false } = {}) => {
-    setLoading(true);
-    try {
-      const response = await fetch('/api/resumes');
-      if (response.status === 401) {
-        setUser(null);
-        setResumes([]);
-        return;
-      }
-      const data: unknown = await response.json();
-      const list = Array.isArray(data) ? (data as Resume[]) : [];
+  const loadResumes = useCallback(
+    async ({ claimOrphans = false } = {}) => {
+      setLoading(true);
+      try {
+        const response = await fetch('/api/resumes');
+        if (response.status === 401) {
+          setUser(null);
+          setResumes([]);
+          return;
+        }
+        const data: unknown = await response.json();
+        const list = Array.isArray(data) ? (data as Resume[]) : [];
 
-      if (list.length === 0 && claimOrphans) {
-        const claimRes = await fetch('/api/resumes/claim', { method: 'POST' });
-        if (claimRes.ok) {
-          const { claimed } = (await claimRes.json()) as { claimed: number };
-          if (claimed > 0) {
-            const retry = await fetch('/api/resumes');
-            const retryData: unknown = await retry.json();
-            setResumes(Array.isArray(retryData) ? (retryData as Resume[]) : []);
-            return;
+        if (list.length === 0 && claimOrphans) {
+          const claimRes = await fetch('/api/resumes/claim', {
+            method: 'POST',
+          });
+          if (claimRes.ok) {
+            const { claimed } = (await claimRes.json()) as { claimed: number };
+            if (claimed > 0) {
+              const retry = await fetch('/api/resumes');
+              const retryData: unknown = await retry.json();
+              setResumes(
+                Array.isArray(retryData) ? (retryData as Resume[]) : []
+              );
+              return;
+            }
           }
         }
-      }
 
-      setResumes(list);
-    } finally {
-      setLoading(false);
-    }
-  }, [setResumes]);
+        setResumes(list);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [setResumes]
+  );
 
   useEffect(() => {
     if (searchParams.get('auth_error')) {
@@ -126,6 +142,39 @@ export function ResumeDashboard() {
       subscription.unsubscribe();
     };
   }, [loadResumes, setResumes, supabase]);
+
+  const handleEmailAuth = async () => {
+    setEmailError('');
+    setEmailLoading(true);
+    try {
+      if (emailMode === 'signup') {
+        const { error } = await supabase.auth.signUp({
+          email: emailInput,
+          password: passwordInput,
+          options: {
+            emailRedirectTo: `${window.location.origin}/auth/callback`,
+          },
+        });
+        if (error) {
+          setEmailError(error.message);
+        } else {
+          setEmailSent(true);
+        }
+      } else {
+        const { error } = await supabase.auth.signInWithPassword({
+          email: emailInput,
+          password: passwordInput,
+        });
+        if (error) {
+          setEmailError('이메일 또는 비밀번호가 올바르지 않습니다.');
+        }
+      }
+    } catch {
+      setEmailError('오류가 발생했습니다. 다시 시도해주세요.');
+    } finally {
+      setEmailLoading(false);
+    }
+  };
 
   const handleGoogleSignIn = async () => {
     setSigningIn(true);
@@ -247,8 +296,18 @@ export function ResumeDashboard() {
           {/* Logo + Title */}
           <div className="flex min-w-0 items-center gap-2.5">
             <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gray-900">
-              <svg className="h-4 w-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              <svg
+                className="h-4 w-4 text-white"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth="1.5"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                />
               </svg>
             </div>
             <h1 className="text-sm font-semibold text-gray-900">이력서 빌더</h1>
@@ -268,9 +327,23 @@ export function ResumeDashboard() {
                   className="flex h-8 w-8 items-center justify-center rounded-md text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
                   title="설정"
                 >
-                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.325.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.241-.438.613-.43.992a7.723 7.723 0 010 .255c-.008.378.137.75.43.991l1.004.827c.424.35.534.955.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.94-1.11.94h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 010-.255c.007-.38-.138-.751-.43-.992l-1.004-.827a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.086.22-.128.332-.183.582-.495.644-.869l.214-1.28z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                  <svg
+                    className="h-4 w-4"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.325.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.241-.438.613-.43.992a7.723 7.723 0 010 .255c-.008.378.137.75.43.991l1.004.827c.424.35.534.955.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.94-1.11.94h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 010-.255c.007-.38-.138-.751-.43-.992l-1.004-.827a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.086.22-.128.332-.183.582-.495.644-.869l.214-1.28z"
+                    />
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+                    />
                   </svg>
                 </button>
 
@@ -280,16 +353,38 @@ export function ResumeDashboard() {
                   disabled={signingOut}
                   className="flex h-8 items-center gap-1 rounded-md px-2 text-xs text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600 disabled:opacity-50"
                 >
-                  <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l-3 3m0 0l3 3m-3-3h12.75" />
+                  <svg
+                    className="h-3.5 w-3.5"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l-3 3m0 0l3 3m-3-3h12.75"
+                    />
                   </svg>
-                  <span className="hidden sm:inline">{signingOut ? '로그아웃 중...' : '로그아웃'}</span>
+                  <span className="hidden sm:inline">
+                    {signingOut ? '로그아웃 중...' : '로그아웃'}
+                  </span>
                 </button>
 
                 <Dialog.Root open={dialogOpen} onOpenChange={setDialogOpen}>
                   <Dialog.Trigger className="flex h-8 items-center gap-1.5 rounded-md bg-gray-900 px-3 text-xs font-medium text-white transition-colors hover:bg-gray-700">
-                    <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                    <svg
+                      className="h-3.5 w-3.5"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M12 4.5v15m7.5-7.5h-15"
+                      />
                     </svg>
                     새 이력서
                   </Dialog.Trigger>
@@ -340,48 +435,141 @@ export function ResumeDashboard() {
             로그인 상태 확인 중...
           </div>
         ) : !user ? (
-          <div className="flex min-h-[calc(100vh-9rem)] items-center justify-center px-4">
-            <div className="w-full max-w-sm">
-              <div className="mb-8 text-center">
-                <div className="mb-4 inline-flex h-10 w-10 items-center justify-center rounded-xl bg-gray-900">
-                  <svg className="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                  </svg>
-                </div>
-                <h2 className="text-xl font-semibold text-gray-900">이력서 빌더</h2>
-                <p className="mt-1.5 text-sm text-gray-500">
-                  구글 계정으로 로그인해 이력서를 관리하세요
+          <div className="mx-auto max-w-md rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
+            <h2 className="text-center text-lg font-semibold text-gray-900">
+              이력서 빌더 시작하기
+            </h2>
+            <p className="mt-1 text-center text-sm text-gray-500">
+              로그인한 계정별로 이력서가 분리되어 저장됩니다.
+            </p>
+
+            {emailSent ? (
+              <div className="mt-5 rounded-lg bg-green-50 p-4 text-center text-sm text-green-700">
+                <p className="font-medium">이메일을 확인해주세요</p>
+                <p className="mt-1 text-green-600">
+                  {emailInput}으로 인증 링크를 보냈습니다.
                 </p>
               </div>
-
-              <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
+            ) : (
+              <>
                 <button
                   type="button"
                   onClick={handleGoogleSignIn}
                   disabled={signingIn}
-                  className="flex w-full items-center justify-center gap-3 rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="mt-5 inline-flex w-full items-center justify-center gap-3 rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm font-semibold text-gray-700 shadow-sm transition-colors hover:bg-gray-50 disabled:opacity-50"
                 >
                   {signingIn ? (
-                    <svg className="h-4 w-4 animate-spin text-gray-400" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                    <svg
+                      className="h-5 w-5 animate-spin text-gray-400"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                    >
+                      <circle
+                        className="opacity-25"
+                        cx="12"
+                        cy="12"
+                        r="10"
+                        stroke="currentColor"
+                        strokeWidth="4"
+                      />
+                      <path
+                        className="opacity-75"
+                        fill="currentColor"
+                        d="M4 12a8 8 0 018-8v8H4z"
+                      />
                     </svg>
                   ) : (
-                    <svg className="h-4 w-4" viewBox="0 0 24 24">
-                      <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" />
-                      <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
-                      <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05" />
-                      <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
+                    <svg className="h-5 w-5" viewBox="0 0 24 24">
+                      <path
+                        d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+                        fill="#4285F4"
+                      />
+                      <path
+                        d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+                        fill="#34A853"
+                      />
+                      <path
+                        d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"
+                        fill="#FBBC05"
+                      />
+                      <path
+                        d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
+                        fill="#EA4335"
+                      />
                     </svg>
                   )}
-                  {signingIn ? '로그인 중...' : 'Google로 계속하기'}
+                  {signingIn ? '로그인 중...' : 'Google로 로그인'}
                 </button>
 
-                {authError && (
-                  <p className="mt-3 text-center text-xs text-red-500">{authError}</p>
+                <div className="my-4 flex items-center gap-3">
+                  <div className="h-px flex-1 bg-gray-200" />
+                  <span className="text-xs text-gray-400">또는</span>
+                  <div className="h-px flex-1 bg-gray-200" />
+                </div>
+
+                <div className="space-y-3">
+                  <input
+                    type="email"
+                    value={emailInput}
+                    onChange={(e) => setEmailInput(e.target.value)}
+                    placeholder="이메일"
+                    className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none"
+                  />
+                  <input
+                    type="password"
+                    value={passwordInput}
+                    onChange={(e) => setPasswordInput(e.target.value)}
+                    onKeyDown={(e) =>
+                      e.key === 'Enter' && void handleEmailAuth()
+                    }
+                    placeholder="비밀번호"
+                    className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleEmailAuth}
+                    disabled={emailLoading}
+                    className="w-full rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-blue-700 disabled:opacity-50"
+                  >
+                    {emailLoading
+                      ? '처리 중...'
+                      : emailMode === 'signin'
+                        ? '이메일로 로그인'
+                        : '회원가입'}
+                  </button>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEmailMode(emailMode === 'signin' ? 'signup' : 'signin');
+                    setEmailError('');
+                    setPasswordInput('');
+                  }}
+                  className="mt-3 w-full text-center text-xs text-gray-400 hover:text-gray-600"
+                >
+                  {emailMode === 'signin'
+                    ? '계정이 없으신가요? 회원가입'
+                    : '이미 계정이 있으신가요? 로그인'}
+                </button>
+
+                {emailMode === 'signin' && (
+                  <button
+                    type="button"
+                    onClick={() => router.push('/auth/forgot-password')}
+                    className="mt-2 w-full text-center text-xs text-blue-500 hover:text-blue-700"
+                  >
+                    비밀번호를 잊으셨나요?
+                  </button>
                 )}
-              </div>
-            </div>
+
+                {(authError || emailError) && (
+                  <p className="mt-3 text-center text-sm text-red-500">
+                    {authError || emailError}
+                  </p>
+                )}
+              </>
+            )}
           </div>
         ) : loading ? (
           <div className="flex items-center justify-center py-20 text-gray-400">
@@ -406,66 +594,97 @@ export function ResumeDashboard() {
           </div>
         ) : (
           <div className="grid grid-cols-1 gap-4">
-            {resumes.map((resume) => (
-              <div
-                key={resume.id}
-                className="group flex items-center justify-between rounded-xl border border-gray-200 bg-white px-5 py-4 transition-all hover:border-blue-300 hover:shadow-md"
-              >
-                <button
-                  type="button"
-                  onClick={() => router.push(`/resumes/${resume.id}`)}
-                  className="flex min-w-0 flex-1 items-center gap-4 text-left"
+            {resumes.map((resume) => {
+              const isNavigating = navigatingId === resume.id;
+              const handleNavigate = () => {
+                setNavigatingId(resume.id);
+                router.push(`/resumes/${resume.id}`);
+              };
+              return (
+                <div
+                  key={resume.id}
+                  className="group flex items-center justify-between rounded-xl border border-gray-200 bg-white px-5 py-4 transition-all hover:border-blue-300 hover:shadow-md"
                 >
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-blue-500">
-                    <svg
-                      width="20"
-                      height="20"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                      strokeWidth="1.5"
+                  <button
+                    type="button"
+                    onClick={handleNavigate}
+                    disabled={isNavigating}
+                    className="flex min-w-0 flex-1 items-center gap-4 text-left"
+                  >
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-blue-500">
+                      {isNavigating ? (
+                        <svg
+                          className="h-5 w-5 animate-spin text-blue-400"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                        >
+                          <circle
+                            className="opacity-25"
+                            cx="12"
+                            cy="12"
+                            r="10"
+                            stroke="currentColor"
+                            strokeWidth="4"
+                          />
+                          <path
+                            className="opacity-75"
+                            fill="currentColor"
+                            d="M4 12a8 8 0 018-8v8H4z"
+                          />
+                        </svg>
+                      ) : (
+                        <svg
+                          width="20"
+                          height="20"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                          strokeWidth="1.5"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                          />
+                        </svg>
+                      )}
+                    </div>
+                    <div className="min-w-0">
+                      <h3 className="truncate font-semibold text-gray-900 transition-colors group-hover:text-blue-600">
+                        {resume.title}
+                      </h3>
+                      <p className="mt-0.5 text-xs text-gray-400">
+                        {formatDate(resume.updated_at)}
+                      </p>
+                    </div>
+                  </button>
+                  <div className="ml-4 flex shrink-0 items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={handleNavigate}
+                      disabled={isNavigating}
+                      className="text-xs font-medium text-blue-600 hover:text-blue-700 disabled:opacity-50"
                     >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                      />
-                    </svg>
+                      {isNavigating ? '로딩 중...' : '편집하기 →'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => openAiCopyDialog(resume)}
+                      className="text-xs font-medium text-violet-600 hover:text-violet-700"
+                    >
+                      AI 변환
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setDeleteTarget(resume)}
+                      className="text-xs text-red-400 hover:text-red-600"
+                    >
+                      삭제
+                    </button>
                   </div>
-                  <div className="min-w-0">
-                    <h3 className="truncate font-semibold text-gray-900 transition-colors group-hover:text-blue-600">
-                      {resume.title}
-                    </h3>
-                    <p className="mt-0.5 text-xs text-gray-400">
-                      {formatDate(resume.updated_at)}
-                    </p>
-                  </div>
-                </button>
-                <div className="ml-4 flex shrink-0 items-center gap-3">
-                  <button
-                    type="button"
-                    onClick={() => router.push(`/resumes/${resume.id}`)}
-                    className="text-xs font-medium text-blue-600 hover:text-blue-700"
-                  >
-                    편집하기 →
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => openAiCopyDialog(resume)}
-                    className="text-xs font-medium text-violet-600 hover:text-violet-700"
-                  >
-                    AI 변환
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setDeleteTarget(resume)}
-                    className="text-xs text-red-400 hover:text-red-600"
-                  >
-                    삭제
-                  </button>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </main>
