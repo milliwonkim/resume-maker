@@ -409,7 +409,7 @@ export function ResumeEditorPage({ resumeId }: Props) {
             <button
               type="button"
               onClick={handlePdfExport}
-              title="브라우저 인쇄 창에서 PDF로 저장할 수 있습니다"
+              title="인쇄 창에서 '머리글/바닥글'을 끄고 PDF로 저장하세요"
               className="rounded-lg bg-gray-900 px-3 py-1.5 text-xs font-medium whitespace-nowrap text-white transition-colors hover:bg-gray-700 sm:px-4 sm:text-sm"
             >
               <span className="sm:hidden">PDF</span>

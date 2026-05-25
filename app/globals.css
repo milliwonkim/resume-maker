@@ -136,7 +136,7 @@ body {
 @media print {
   @page {
     size: A4;
-    margin: 12mm;
+    margin: 0;
   }
 
   html,
@@ -159,7 +159,7 @@ body {
     max-width: none !important;
     min-height: 0 !important;
     margin: 0 !important;
-    padding: 0 !important;
+    padding: 12mm !important;
     border-radius: 0 !important;
     box-shadow: none !important;
     background: white !important;
