@@ -165,63 +165,66 @@ body {
   content: '' !important;
 }
 
-/* Print styles */
+/* Print: only #resume-print-clone (mounted in beforeprint) */
 @media print {
   @page {
     size: A4;
     margin: 12mm;
   }
 
-  header,
-  .rich-text-toolbar,
-  .no-print {
-    display: none !important;
-  }
-
   html,
   body {
-    background: white;
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+    background: white !important;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
 
-  .resume-editor-shell {
-    min-height: auto !important;
-    background: white !important;
+  body.is-printing-resume > *:not(#resume-print-clone) {
+    display: none !important;
   }
 
-  main {
+  #resume-print-clone {
+    display: block !important;
+    width: 100% !important;
+    max-width: none !important;
+    min-height: 0 !important;
+    margin: 0 !important;
     padding: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    background: white !important;
     overflow: visible !important;
   }
 
-  .resume-print-root {
-    width: 100% !important;
-    max-width: none !important;
-    min-height: auto !important;
-    margin: 0 !important;
-    border-radius: 0 !important;
-    box-shadow: none !important;
-    padding: 0 !important;
-  }
-
-  .resume-section-wrapper {
+  #resume-print-clone .resume-section-wrapper {
     break-inside: avoid;
     page-break-inside: avoid;
     padding-top: 0 !important;
+    box-shadow: none !important;
+    outline: none !important;
   }
 
-  .resume-print-root *,
-  .resume-print-root::before,
-  .resume-print-root::after {
+  #resume-print-clone .resume-section-content {
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+  }
+
+  #resume-print-clone [class*='ring-'] {
+    box-shadow: none !important;
+    outline: none !important;
+  }
+
+  #resume-print-clone *,
+  #resume-print-clone::before,
+  #resume-print-clone::after {
     box-shadow: none !important;
   }
 
-  .rich-text-field p.is-editor-empty:first-child::before {
-    content: '' !important;
-  }
-
-  [contenteditable]:empty::before {
-    content: '' !important;
+  #resume-print-clone .rich-text-field p.is-editor-empty:first-child::before,
+  #resume-print-clone [data-placeholder]:empty::before {
+    content: none !important;
   }
 }

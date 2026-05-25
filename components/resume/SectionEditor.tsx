@@ -119,7 +119,7 @@ export function SectionEditor({
 
   return (
     <div
-      className={`relative rounded-lg transition-all ${isActive ? 'ring-2 ring-blue-300 ring-offset-2' : ''}`}
+      className={`relative rounded-lg transition-all print:ring-0 print:ring-offset-0 ${isActive ? 'ring-2 ring-blue-300 ring-offset-2' : ''}`}
       onClick={onActivate}
     >
       {/* Section toolbar */}

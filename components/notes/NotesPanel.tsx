@@ -7,8 +7,10 @@ import { richTextToPlainText } from '@/lib/rich-text';
 import type { Note, RichTextDocument } from '@/lib/types';
 import { RichTextField } from '@/components/resume/RichTextField';
 
-interface ResumeNotesPanelProps {
-  resumeId: string;
+interface NotesPanelProps {
+  resumeId?: string;
+  onClose?: () => void;
+  className?: string;
 }
 
 interface ResumeNoteIdsResponse {
@@ -42,7 +44,11 @@ async function fetchLinkedNoteIds(resumeId: string): Promise<string[]> {
   return data.noteIds;
 }
 
-export function ResumeNotesPanel({ resumeId }: ResumeNotesPanelProps) {
+export function NotesPanel({
+  resumeId,
+  onClose,
+  className = '',
+}: NotesPanelProps) {
   const queryClient = useQueryClient();
   const [selectedNoteId, setSelectedNoteId] = useState<string | null>(null);
   const [savingNoteId, setSavingNoteId] = useState<string | null>(null);
@@ -54,9 +60,12 @@ export function ResumeNotesPanel({ resumeId }: ResumeNotesPanelProps) {
     staleTime: 30_000,
   });
   const linkedNoteIdsQuery = useQuery({
-    queryKey: NOTE_QUERY_KEYS.resumeLinks(resumeId),
-    queryFn: () => fetchLinkedNoteIds(resumeId),
+    queryKey: resumeId
+      ? NOTE_QUERY_KEYS.resumeLinks(resumeId)
+      : ['resume-notes', 'none'],
+    queryFn: () => fetchLinkedNoteIds(resumeId as string),
     staleTime: 30_000,
+    enabled: Boolean(resumeId),
   });
   const createNoteMutation = useMutation({
     mutationFn: async () => {
@@ -70,9 +79,11 @@ export function ResumeNotesPanel({ resumeId }: ResumeNotesPanelProps) {
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: NOTE_QUERY_KEYS.all });
-      void queryClient.invalidateQueries({
-        queryKey: NOTE_QUERY_KEYS.resumeLinks(resumeId),
-      });
+      if (resumeId) {
+        void queryClient.invalidateQueries({
+          queryKey: NOTE_QUERY_KEYS.resumeLinks(resumeId),
+        });
+      }
     },
   });
   const updateNoteMutation = useMutation({
@@ -103,9 +114,11 @@ export function ResumeNotesPanel({ resumeId }: ResumeNotesPanelProps) {
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: NOTE_QUERY_KEYS.all });
-      void queryClient.invalidateQueries({
-        queryKey: NOTE_QUERY_KEYS.resumeLinks(resumeId),
-      });
+      if (resumeId) {
+        void queryClient.invalidateQueries({
+          queryKey: NOTE_QUERY_KEYS.resumeLinks(resumeId),
+        });
+      }
     },
   });
   const linkNoteMutation = useMutation({
@@ -124,9 +137,11 @@ export function ResumeNotesPanel({ resumeId }: ResumeNotesPanelProps) {
       if (!response.ok) throw new Error('메모 연결을 변경하지 못했습니다.');
     },
     onSuccess: () => {
-      void queryClient.invalidateQueries({
-        queryKey: NOTE_QUERY_KEYS.resumeLinks(resumeId),
-      });
+      if (resumeId) {
+        void queryClient.invalidateQueries({
+          queryKey: NOTE_QUERY_KEYS.resumeLinks(resumeId),
+        });
+      }
     },
   });
 
@@ -138,14 +153,16 @@ export function ResumeNotesPanel({ resumeId }: ResumeNotesPanelProps) {
   const sortedNotes = useMemo(
     () =>
       [...notes].sort((a, b) => {
-        const aLinked = linkedNoteIds.has(a.id);
-        const bLinked = linkedNoteIds.has(b.id);
-        if (aLinked !== bLinked) return aLinked ? -1 : 1;
+        if (resumeId) {
+          const aLinked = linkedNoteIds.has(a.id);
+          const bLinked = linkedNoteIds.has(b.id);
+          if (aLinked !== bLinked) return aLinked ? -1 : 1;
+        }
         return (
           new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
         );
       }),
-    [linkedNoteIds, notes]
+    [linkedNoteIds, notes, resumeId]
   );
   const selectedNote =
     notes.find((note) => note.id === selectedNoteId) ?? sortedNotes[0] ?? null;
@@ -204,11 +221,14 @@ export function ResumeNotesPanel({ resumeId }: ResumeNotesPanelProps) {
         ...(currentNotes ?? []),
       ]);
       setSelectedNoteId(note.id);
-      queryClient.setQueryData<string[]>(
-        NOTE_QUERY_KEYS.resumeLinks(resumeId),
-        (currentNoteIds) => [...new Set([...(currentNoteIds ?? []), note.id])]
-      );
-      await linkNoteMutation.mutateAsync({ noteId: note.id, linked: true });
+
+      if (resumeId) {
+        queryClient.setQueryData<string[]>(
+          NOTE_QUERY_KEYS.resumeLinks(resumeId),
+          (currentNoteIds) => [...new Set([...(currentNoteIds ?? []), note.id])]
+        );
+        await linkNoteMutation.mutateAsync({ noteId: note.id, linked: true });
+      }
     } catch {
       setManualError('메모를 만들지 못했습니다.');
     }
@@ -218,13 +238,17 @@ export function ResumeNotesPanel({ resumeId }: ResumeNotesPanelProps) {
     async (noteId: string) => {
       const nextNotes = notes.filter((note) => note.id !== noteId);
       queryClient.setQueryData<Note[]>(NOTE_QUERY_KEYS.all, nextNotes);
-      queryClient.setQueryData<string[]>(
-        NOTE_QUERY_KEYS.resumeLinks(resumeId),
-        (currentNoteIds) =>
-          (currentNoteIds ?? []).filter(
-            (currentNoteId) => currentNoteId !== noteId
-          )
-      );
+
+      if (resumeId) {
+        queryClient.setQueryData<string[]>(
+          NOTE_QUERY_KEYS.resumeLinks(resumeId),
+          (currentNoteIds) =>
+            (currentNoteIds ?? []).filter(
+              (currentNoteId) => currentNoteId !== noteId
+            )
+        );
+      }
+
       setSelectedNoteId((current) =>
         current === noteId ? (nextNotes[0]?.id ?? null) : current
       );
@@ -239,6 +263,8 @@ export function ResumeNotesPanel({ resumeId }: ResumeNotesPanelProps) {
 
   const handleLinkChange = useCallback(
     async (noteId: string, linked: boolean) => {
+      if (!resumeId) return;
+
       queryClient.setQueryData<string[]>(
         NOTE_QUERY_KEYS.resumeLinks(resumeId),
         (currentNoteIds) => {
@@ -258,31 +284,65 @@ export function ResumeNotesPanel({ resumeId }: ResumeNotesPanelProps) {
     [linkNoteMutation, queryClient, resumeId]
   );
 
-  const isLoading = notesQuery.isLoading || linkedNoteIdsQuery.isLoading;
+  const isLoading =
+    notesQuery.isLoading || (resumeId ? linkedNoteIdsQuery.isLoading : false);
   const isCreating = createNoteMutation.isPending;
   const error =
     manualError ||
-    (notesQuery.error || linkedNoteIdsQuery.error
+    (notesQuery.error || (resumeId && linkedNoteIdsQuery.error)
       ? '메모를 불러오지 못했습니다.'
       : '');
 
   return (
-    <aside className="no-print flex max-h-[calc(100vh-7rem)] w-full flex-col overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm xl:sticky xl:top-24 xl:w-96">
+    <aside
+      className={`no-print flex max-h-[calc(100vh-7rem)] w-full flex-col overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm ${className}`}
+    >
       <div className="flex shrink-0 items-center justify-between border-b border-gray-100 px-4 py-3">
-        <div>
+        <div className="min-w-0">
           <h2 className="text-sm font-semibold text-gray-900">메모장</h2>
-          <p className="mt-0.5 text-xs text-gray-400">
-            연결된 메모 {linkedCount}개
-          </p>
+          {resumeId ? (
+            <p className="mt-0.5 text-xs text-gray-400">
+              연결된 메모 {linkedCount}개
+            </p>
+          ) : (
+            <p className="mt-0.5 text-xs text-gray-400">
+              프로젝트 기록이나 성과를 자유롭게 메모하세요
+            </p>
+          )}
         </div>
-        <button
-          type="button"
-          onClick={handleCreate}
-          disabled={isCreating}
-          className="rounded-md bg-gray-900 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-gray-700 disabled:opacity-50"
-        >
-          {isCreating ? '생성 중' : '새 메모'}
-        </button>
+        <div className="flex shrink-0 items-center gap-2">
+          <button
+            type="button"
+            onClick={handleCreate}
+            disabled={isCreating}
+            className="rounded-md bg-gray-900 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-gray-700 disabled:opacity-50"
+          >
+            {isCreating ? '생성 중' : '새 메모'}
+          </button>
+          {onClose && (
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="메모장 닫기"
+              className="rounded-md p-1.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700"
+            >
+              <svg
+                className="h-5 w-5"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                aria-hidden
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M6 18L18 6M6 6l12 12"
+                />
+              </svg>
+            </button>
+          )}
+        </div>
       </div>
 
       {error && (
@@ -292,19 +352,19 @@ export function ResumeNotesPanel({ resumeId }: ResumeNotesPanelProps) {
       )}
 
       {isLoading ? (
-        <div className="flex min-h-48 items-center justify-center text-sm text-gray-400">
+        <div className="flex min-h-48 flex-1 items-center justify-center text-sm text-gray-400">
           메모 불러오는 중...
         </div>
       ) : notes.length === 0 ? (
-        <div className="flex min-h-48 flex-col items-center justify-center px-6 text-center">
+        <div className="flex min-h-48 flex-1 flex-col items-center justify-center px-6 text-center">
           <p className="text-sm font-medium text-gray-700">메모가 없습니다</p>
           <p className="mt-1 text-xs text-gray-400">
             작성 중 참고할 프로젝트 기록이나 성과를 메모로 남겨두세요.
           </p>
         </div>
       ) : (
-        <div className="grid min-h-0 flex-1 grid-cols-1 border-t border-gray-50 lg:grid-cols-[11rem_1fr] xl:grid-cols-1">
-          <div className="min-h-0 overflow-y-auto border-b border-gray-100 lg:border-r lg:border-b-0 xl:max-h-56 xl:border-r-0 xl:border-b">
+        <div className="grid min-h-0 flex-1 grid-cols-1 border-t border-gray-50 sm:grid-cols-[11rem_1fr]">
+          <div className="min-h-0 overflow-y-auto border-b border-gray-100 sm:max-h-none sm:border-r sm:border-b-0">
             {sortedNotes.map((note) => {
               const isLinked = linkedNoteIds.has(note.id);
               const isSelected = selectedNote?.id === note.id;
@@ -317,17 +377,19 @@ export function ResumeNotesPanel({ resumeId }: ResumeNotesPanelProps) {
                     isSelected ? 'bg-blue-50/70' : 'bg-white'
                   }`}
                 >
-                  <input
-                    type="checkbox"
-                    checked={isLinked}
-                    onChange={(event) => {
-                      event.stopPropagation();
-                      void handleLinkChange(note.id, event.target.checked);
-                    }}
-                    onClick={(event) => event.stopPropagation()}
-                    className="mt-0.5 h-3.5 w-3.5 shrink-0 rounded border-gray-300"
-                    aria-label="이력서에 메모 연결"
-                  />
+                  {resumeId && (
+                    <input
+                      type="checkbox"
+                      checked={isLinked}
+                      onChange={(event) => {
+                        event.stopPropagation();
+                        void handleLinkChange(note.id, event.target.checked);
+                      }}
+                      onClick={(event) => event.stopPropagation()}
+                      className="mt-0.5 h-3.5 w-3.5 shrink-0 rounded border-gray-300"
+                      aria-label="이력서에 메모 연결"
+                    />
+                  )}
                   <span className="min-w-0">
                     <span className="block truncate text-xs font-semibold text-gray-800">
                       {note.title || '제목 없음'}
@@ -364,17 +426,22 @@ export function ResumeNotesPanel({ resumeId }: ResumeNotesPanelProps) {
                 </button>
               </div>
 
-              <label className="mb-3 flex items-center gap-2 text-xs text-gray-500">
-                <input
-                  type="checkbox"
-                  checked={linkedNoteIds.has(selectedNote.id)}
-                  onChange={(event) =>
-                    void handleLinkChange(selectedNote.id, event.target.checked)
-                  }
-                  className="h-3.5 w-3.5 rounded border-gray-300"
-                />
-                이 이력서에서 참고
-              </label>
+              {resumeId && (
+                <label className="mb-3 flex items-center gap-2 text-xs text-gray-500">
+                  <input
+                    type="checkbox"
+                    checked={linkedNoteIds.has(selectedNote.id)}
+                    onChange={(event) =>
+                      void handleLinkChange(
+                        selectedNote.id,
+                        event.target.checked
+                      )
+                    }
+                    className="h-3.5 w-3.5 rounded border-gray-300"
+                  />
+                  이 이력서에서 참고
+                </label>
+              )}
 
               <RichTextField
                 value={selectedNote.content}

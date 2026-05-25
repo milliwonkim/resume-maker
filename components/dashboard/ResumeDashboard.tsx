@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Dialog } from '@base-ui/react';
 
+import { NotesNavbarButton } from '@/components/notes/NotesNavbarButton';
 import { SettingsDialog } from '@/components/settings/SettingsDialog';
 import type { Resume } from '@/lib/types';
 import {
@@ -580,6 +581,8 @@ export function ResumeDashboard() {
                 <span className="hidden max-w-40 truncate text-xs text-gray-400 md:block">
                   {user.email}
                 </span>
+
+                <NotesNavbarButton />
 
                 <button
                   type="button"

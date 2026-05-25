@@ -9,7 +9,7 @@ const REGULAR_FONT_PATH = path.join(
   '@fontsource',
   'noto-sans-kr',
   'files',
-  'noto-sans-kr-korean-400-normal.woff2'
+  'noto-sans-kr-korean-400-normal.woff'
 );
 const BOLD_FONT_PATH = path.join(
   process.cwd(),
@@ -38,7 +38,7 @@ export async function GET(_request: Request, context: RouteContext) {
     return new Response(fontBytes, {
       headers: {
         'Cache-Control': 'public, max-age=31536000, immutable',
-        'Content-Type': font === 'regular' ? 'font/woff2' : 'font/woff',
+        'Content-Type': 'font/woff',
       },
     });
   } catch (error) {

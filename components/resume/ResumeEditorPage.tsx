@@ -15,8 +15,9 @@ import { useResumeStore } from '@/store/resume';
 import { useAIStore } from '@/store/ai';
 import { useAIJobsStore, type AIJob } from '@/store/ai-jobs';
 import { applyAIResult } from '@/lib/ai-apply';
+import { registerResumePrintHandlers } from '@/lib/resume-print';
 import { richTextToPlainText } from '@/lib/rich-text';
-import { ResumeNotesPanel } from '@/components/notes/ResumeNotesPanel';
+import { NotesNavbarButton } from '@/components/notes/NotesNavbarButton';
 import { ResumeEditor, type ResumeEditorRef } from './ResumeEditor';
 import { SettingsDialog } from '@/components/settings/SettingsDialog';
 import { AIPanel } from '@/components/ai/AIPanel';
@@ -127,15 +128,42 @@ function splitLongWord(
   return chunks;
 }
 
+function wrapCjkLine(
+  sourceLine: string,
+  font: PDFFont,
+  size: number,
+  maxWidth: number
+) {
+  const wrapped: string[] = [];
+  let line = '';
+  for (const char of sourceLine) {
+    const next = `${line}${char}`;
+    if (font.widthOfTextAtSize(next, size) > maxWidth && line) {
+      wrapped.push(line);
+      line = char;
+    } else {
+      line = next;
+    }
+  }
+  if (line) wrapped.push(line);
+  return wrapped;
+}
+
 function wrapText(text: string, font: PDFFont, size: number, maxWidth: number) {
   const wrapped: string[] = [];
   for (const sourceLine of text.replace(/\r\n?/g, '\n').split('\n')) {
-    const words = sourceLine.trim().split(/\s+/).filter(Boolean);
-    if (words.length === 0) {
+    const trimmed = sourceLine.trim();
+    if (!trimmed) {
       wrapped.push('');
       continue;
     }
 
+    if (!/\s/.test(trimmed)) {
+      wrapped.push(...wrapCjkLine(trimmed, font, size, maxWidth));
+      continue;
+    }
+
+    const words = trimmed.split(/\s+/).filter(Boolean);
     let line = '';
     for (const word of words) {
       const candidate = line ? `${line} ${word}` : word;
@@ -479,8 +507,8 @@ async function createTextPdf(sections: ResumeSection[]) {
     loadPdfFont(PDF_BOLD_FONT_URL),
   ]);
   const fonts: PdfFonts = {
-    regular: await document.embedFont(regularFontBytes, { subset: true }),
-    bold: await document.embedFont(boldFontBytes, { subset: true }),
+    regular: await document.embedFont(regularFontBytes),
+    bold: await document.embedFont(boldFontBytes),
   };
 
   const context: PdfContext = {
@@ -616,6 +644,8 @@ export function ResumeEditorPage({ resumeId }: Props) {
   useEffect(() => {
     if (editingTitle) titleRef.current?.focus();
   }, [editingTitle]);
+
+  useEffect(() => registerResumePrintHandlers(), []);
 
   // Warn on browser close/refresh when there are unsaved changes
   useEffect(() => {
@@ -776,7 +806,9 @@ export function ResumeEditorPage({ resumeId }: Props) {
   const handlePdfExport = useCallback(async () => {
     setIsExportingPdf(true);
     try {
-      const bytes = await createTextPdf(sections);
+      await editorRef.current?.save();
+      const latestSections = useResumeStore.getState().sections;
+      const bytes = await createTextPdf(latestSections);
       downloadBytes(
         bytes,
         getExportFileName(pendingTitle ?? currentResume?.title)
@@ -784,7 +816,7 @@ export function ResumeEditorPage({ resumeId }: Props) {
     } finally {
       setIsExportingPdf(false);
     }
-  }, [currentResume?.title, pendingTitle, sections]);
+  }, [currentResume?.title, pendingTitle]);
 
   if (loading) {
     return (
@@ -797,7 +829,7 @@ export function ResumeEditorPage({ resumeId }: Props) {
   return (
     <div className="resume-editor-shell min-h-screen bg-gray-100">
       {/* Toolbar */}
-      <header className="sticky top-0 z-30 border-b border-gray-200 bg-white shadow-sm">
+      <header className="no-print sticky top-0 z-30 border-b border-gray-200 bg-white shadow-sm">
         <div className="mx-auto flex max-w-6xl items-center gap-2 px-3 py-2 sm:gap-4 sm:px-6 sm:py-3">
           <button
             type="button"
@@ -856,6 +888,8 @@ export function ResumeEditorPage({ resumeId }: Props) {
                 </span>
               </button>
             )}
+
+            <NotesNavbarButton resumeId={resumeId} />
 
             <button
               type="button"
@@ -957,17 +991,14 @@ export function ResumeEditorPage({ resumeId }: Props) {
       </header>
 
       {/* Editor area */}
-      <main className="overflow-x-auto px-2 py-4 sm:px-4 sm:py-10 print:bg-white print:p-0">
-        <div className="mx-auto flex max-w-7xl flex-col gap-4 xl:flex-row xl:items-start">
-          <div className="min-w-0 flex-1">
-            <ResumeEditor
-              ref={editorRef}
-              resumeId={resumeId}
-              autoSave={autoSave}
-              onPendingChange={setHasPendingEditorChanges}
-            />
-          </div>
-          <ResumeNotesPanel resumeId={resumeId} />
+      <main className="overflow-x-auto px-2 py-4 sm:px-4 sm:py-10">
+        <div className="mx-auto max-w-4xl">
+          <ResumeEditor
+            ref={editorRef}
+            resumeId={resumeId}
+            autoSave={autoSave}
+            onPendingChange={setHasPendingEditorChanges}
+          />
         </div>
       </main>
 
