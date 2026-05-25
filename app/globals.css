@@ -132,39 +132,6 @@ body {
   display: inline-flex;
 }
 
-.is-pdf-exporting .no-print,
-.is-pdf-exporting .rich-text-toolbar {
-  display: none !important;
-}
-
-.is-pdf-exporting .resume-print-root {
-  width: 794px !important;
-  max-width: 794px !important;
-  min-height: auto !important;
-  border-radius: 0 !important;
-  box-shadow: none !important;
-}
-
-.is-pdf-exporting .resume-section-wrapper {
-  padding-top: 0 !important;
-}
-
-.is-pdf-exporting .resume-section-content {
-  padding-top: 0 !important;
-  padding-bottom: 0 !important;
-}
-
-.is-pdf-exporting .resume-print-root *,
-.is-pdf-exporting .resume-print-root::before,
-.is-pdf-exporting .resume-print-root::after {
-  box-shadow: none !important;
-}
-
-.is-pdf-exporting .rich-text-field p.is-editor-empty:first-child::before,
-.is-pdf-exporting [contenteditable]:empty::before {
-  content: '' !important;
-}
-
 /* Print: only #resume-print-clone (mounted in beforeprint) */
 @media print {
   @page {

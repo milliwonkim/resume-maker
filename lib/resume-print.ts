@@ -1,7 +1,7 @@
 const PRINT_CLONE_ID = 'resume-print-clone';
 const PRINTING_CLASS = 'is-printing-resume';
 
-function preparePrintClone(source: Element): HTMLElement {
+export function prepareResumeExportClone(source: Element): HTMLElement {
   const clone = source.cloneNode(true) as HTMLElement;
   clone.id = PRINT_CLONE_ID;
   clone.classList.add('resume-print-clone');
@@ -25,13 +25,17 @@ export function mountResumePrintClone(): void {
   const source = document.querySelector('.resume-print-root');
   if (!source || document.getElementById(PRINT_CLONE_ID)) return;
 
-  document.body.appendChild(preparePrintClone(source));
+  document.body.appendChild(prepareResumeExportClone(source));
   document.body.classList.add(PRINTING_CLASS);
 }
 
 export function unmountResumePrintClone(): void {
   document.getElementById(PRINT_CLONE_ID)?.remove();
   document.body.classList.remove(PRINTING_CLASS);
+}
+
+export function openBrowserPrintExport(): void {
+  window.print();
 }
 
 export function registerResumePrintHandlers(): () => void {
