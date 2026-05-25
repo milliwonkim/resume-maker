@@ -1,22 +1,10 @@
 import { NextRequest } from 'next/server';
 
 import { getAuthenticatedUser, unauthorizedResponse } from '@/lib/auth';
-import { createServerSupabaseClient } from '@/lib/supabase/server';
 import type { ResumeImage } from '@/lib/types';
 
-const RESUME_IMAGES_BUCKET = 'resume-images';
 const MAX_IMAGE_FILE_BYTES = 4 * 1024 * 1024;
 const IMAGE_MIME_PREFIX = 'image/';
-const SAFE_FILE_NAME_PATTERN = /[^a-zA-Z0-9._-]+/g;
-
-function sanitizeFileName(fileName: string): string {
-  return fileName.replace(SAFE_FILE_NAME_PATTERN, '-').replace(/^-+|-+$/g, '');
-}
-
-function getUploadPath(userId: string, file: File): string {
-  const fileName = sanitizeFileName(file.name) || 'resume-image';
-  return `${userId}/${crypto.randomUUID()}-${fileName}`;
-}
 
 function validateImageFile(file: File): string | null {
   if (!file.type.startsWith(IMAGE_MIME_PREFIX)) {
@@ -30,8 +18,9 @@ function validateImageFile(file: File): string | null {
   return null;
 }
 
-function isOwnedStoragePath(userId: string, path: string): boolean {
-  return path.startsWith(`${userId}/`) && !path.includes('..');
+async function fileToDataUrl(file: File): Promise<string> {
+  const bytes = Buffer.from(await file.arrayBuffer());
+  return `data:${file.type};base64,${bytes.toString('base64')}`;
 }
 
 export async function POST(request: NextRequest) {
@@ -55,30 +44,10 @@ export async function POST(request: NextRequest) {
       return Response.json({ error: validationError }, { status: 400 });
     }
 
-    const supabase = await createServerSupabaseClient();
-    const path = getUploadPath(auth.id, file);
-    const { error: uploadError } = await supabase.storage
-      .from(RESUME_IMAGES_BUCKET)
-      .upload(path, file, {
-        contentType: file.type,
-        upsert: false,
-      });
-
-    if (uploadError) {
-      console.error('[resume-images] storage upload error:', uploadError);
-      return Response.json(
-        { error: uploadError.message || '사진을 업로드하지 못했습니다.' },
-        { status: 500 }
-      );
-    }
-
-    const { data } = supabase.storage
-      .from(RESUME_IMAGES_BUCKET)
-      .getPublicUrl(path);
     const image: ResumeImage = {
       id: crypto.randomUUID(),
-      src: data.publicUrl,
-      path,
+      src: await fileToDataUrl(file),
+      path: '',
       alt: typeof alt === 'string' && alt.trim() ? alt.trim() : '첨부 사진',
       caption: '',
     };
@@ -96,22 +65,7 @@ export async function DELETE(request: NextRequest) {
     const auth = await getAuthenticatedUser();
     if (!auth) return unauthorizedResponse();
 
-    const body = (await request.json().catch(() => ({}))) as { path?: string };
-    const path = body.path?.trim();
-
-    if (!path || !isOwnedStoragePath(auth.id, path)) {
-      return Response.json(
-        { error: '삭제할 사진 경로가 올바르지 않습니다.' },
-        { status: 400 }
-      );
-    }
-
-    const supabase = await createServerSupabaseClient();
-    const { error } = await supabase.storage
-      .from(RESUME_IMAGES_BUCKET)
-      .remove([path]);
-
-    if (error) throw error;
+    await request.json().catch(() => ({}));
 
     return Response.json({ success: true });
   } catch (error) {

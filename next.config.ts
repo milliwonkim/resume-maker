@@ -1,21 +1,11 @@
 import type { NextConfig } from 'next';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseHostname = supabaseUrl
-  ? new URL(supabaseUrl).hostname
-  : undefined;
-
 const nextConfig: NextConfig = {
-  images: {
-    remotePatterns: supabaseHostname
-      ? [
-          {
-            protocol: 'https',
-            hostname: supabaseHostname,
-            pathname: '/storage/v1/object/public/resume-images/**',
-          },
-        ]
-      : [],
+  outputFileTracingIncludes: {
+    '/api/pdf-fonts/*': [
+      './node_modules/@fontsource/noto-sans-kr/files/noto-sans-kr-korean-400-normal.woff2',
+      './node_modules/@fontsource/noto-sans-kr/files/noto-sans-kr-korean-700-normal.woff',
+    ],
   },
 };
 

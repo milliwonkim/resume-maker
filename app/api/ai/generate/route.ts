@@ -1,9 +1,10 @@
 import { NextRequest } from 'next/server';
 import { GoogleGenAI } from '@google/genai';
+
+import { getGeminiErrorResult } from '@/lib/gemini-errors';
+import { getServerGeminiApiKey } from '@/lib/server-user-tokens';
 import type { SectionType } from '@/lib/types';
 
-const GEMINI_QUOTA_ERROR_CODE = 'GEMINI_QUOTA_EXCEEDED';
-const GEMINI_QUOTA_ERROR_MESSAGE = '잠시 후에 다시 실행해주세요.';
 const JSON_SECTIONS: SectionType[] = [
   'experience',
   'education',
@@ -123,34 +124,6 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
 }
 
-function collectErrorValues(value: unknown, depth = 0): string[] {
-  if (depth > 2) return [];
-
-  if (typeof value === 'string' || typeof value === 'number') {
-    return [String(value)];
-  }
-
-  if (value instanceof Error) {
-    return [value.message, ...collectErrorValues(value.cause, depth + 1)];
-  }
-
-  if (!isRecord(value)) return [];
-
-  return Object.values(value).flatMap((nestedValue) =>
-    collectErrorValues(nestedValue, depth + 1)
-  );
-}
-
-function isGeminiQuotaError(error: unknown): boolean {
-  const errorText = collectErrorValues(error).join(' ').toLowerCase();
-  return (
-    errorText.includes('429') ||
-    errorText.includes('quota') ||
-    errorText.includes('resource_exhausted') ||
-    errorText.includes('rate limit')
-  );
-}
-
 export async function POST(request: NextRequest) {
   let body: {
     sectionType: SectionType;
@@ -175,7 +148,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const apiKey = body.apiKey?.trim() || process.env.GEMINI_API_KEY;
+  const apiKey = await getServerGeminiApiKey(body.apiKey);
   if (!apiKey) {
     return Response.json(
       { error: 'Gemini API 키를 설정해주세요.' },
@@ -202,19 +175,17 @@ export async function POST(request: NextRequest) {
   try {
     const genAI = new GoogleGenAI({ apiKey });
     const result = await genAI.models.generateContent({
-      model: body.model?.trim() || 'gemini-2.5-flash',
+      model: body.model?.trim() || 'gemma-4-31b-it',
       contents: prompt,
     });
     return Response.json({ text: result.text?.trim() ?? '' });
   } catch (err) {
     console.error('[ai/generate] error:', err);
-    if (isGeminiQuotaError(err)) {
-      return Response.json(
-        { error: GEMINI_QUOTA_ERROR_MESSAGE, code: GEMINI_QUOTA_ERROR_CODE },
-        { status: 429 }
-      );
-    }
+    const geminiError = getGeminiErrorResult(err);
 
-    return Response.json({ error: 'AI 생성 실패' }, { status: 500 });
+    return Response.json(
+      { error: geminiError.message, code: geminiError.code },
+      { status: geminiError.status }
+    );
   }
 }

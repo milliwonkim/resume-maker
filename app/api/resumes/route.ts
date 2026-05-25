@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server';
 
 import { getAuthenticatedUser, unauthorizedResponse } from '@/lib/auth';
-import { getResumes, createResume } from '@/lib/supabase-db';
+import { getResumes, createResume } from '@/lib/notion-db';
 
 export async function GET() {
   try {

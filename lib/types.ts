@@ -27,6 +27,12 @@ export interface ResumeSection {
 
 // ── Rich text ───────────────────────────────────────────
 export type RichTextMarkType = 'bold' | 'italic' | 'strike' | 'underline';
+export type RichTextAttributeValue =
+  | string
+  | number
+  | boolean
+  | null
+  | number[];
 
 export interface RichTextMark {
   type: RichTextMarkType;
@@ -37,11 +43,21 @@ export interface RichTextNode {
   text?: string;
   marks?: RichTextMark[];
   content?: RichTextNode[];
+  attrs?: Record<string, RichTextAttributeValue>;
 }
 
 export interface RichTextDocument {
   type: 'doc';
   content: RichTextNode[];
+}
+
+// ── Notes ───────────────────────────────────────────────
+export interface Note {
+  id: string;
+  title: string;
+  content: RichTextDocument;
+  created_at: string;
+  updated_at: string;
 }
 
 export function makeRichTextDocument(text = ''): RichTextDocument {

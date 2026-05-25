@@ -6,7 +6,7 @@ import {
   updateSectionContent,
   updateSectionOrder,
   deleteSection,
-} from '@/lib/supabase-db';
+} from '@/lib/notion-db';
 import type { SectionContent } from '@/lib/types';
 
 export async function PATCH(

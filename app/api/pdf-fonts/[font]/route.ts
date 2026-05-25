@@ -1,6 +1,8 @@
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 
+export const runtime = 'nodejs';
+
 const REGULAR_FONT_PATH = path.join(
   process.cwd(),
   'node_modules',
@@ -31,11 +33,19 @@ export async function GET(_request: Request, context: RouteContext) {
   }
 
   const filePath = font === 'regular' ? REGULAR_FONT_PATH : BOLD_FONT_PATH;
-  const fontBytes = await readFile(filePath);
-  return new Response(fontBytes, {
-    headers: {
-      'Cache-Control': 'public, max-age=31536000, immutable',
-      'Content-Type': font === 'regular' ? 'font/woff2' : 'font/woff',
-    },
-  });
+  try {
+    const fontBytes = await readFile(filePath);
+    return new Response(fontBytes, {
+      headers: {
+        'Cache-Control': 'public, max-age=31536000, immutable',
+        'Content-Type': font === 'regular' ? 'font/woff2' : 'font/woff',
+      },
+    });
+  } catch (error) {
+    console.error('Failed to read PDF font file', { font, error });
+    return Response.json(
+      { error: 'Failed to load PDF font' },
+      { status: 500 }
+    );
+  }
 }

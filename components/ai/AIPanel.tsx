@@ -14,10 +14,10 @@ const GEMINI_QUOTA_TOAST_MESSAGE = '잠시 후에 다시 실행해주세요.';
 const TOAST_DURATION_MS = 3000;
 
 const GEMINI_MODELS = [
-  { id: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash' },
-  { id: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro' },
   { id: 'gemma-4-31b-it', label: 'Gemma 4 31B' },
   { id: 'gemma-4-26b-it', label: 'Gemma 4 26B' },
+  { id: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash' },
+  { id: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro' },
 ] as const;
 
 interface Props {

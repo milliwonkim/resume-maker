@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server';
 
 import { getAuthenticatedUser, unauthorizedResponse } from '@/lib/auth';
-import { createSection } from '@/lib/supabase-db';
+import { createSection } from '@/lib/notion-db';
 import type { SectionType, SectionContent } from '@/lib/types';
 
 export async function POST(

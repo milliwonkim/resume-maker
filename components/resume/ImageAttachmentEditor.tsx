@@ -49,9 +49,7 @@ async function createResumeImages(files: File[]): Promise<ResumeImage[]> {
         error?: string;
       };
       if (!response.ok || !data.image) {
-        throw new Error(
-          data.error ?? '사진을 Supabase에 업로드하지 못했습니다.'
-        );
+        throw new Error(data.error ?? '사진을 첨부하지 못했습니다.');
       }
       return data.image;
     })

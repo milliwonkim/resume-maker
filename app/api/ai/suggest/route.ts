@@ -1,5 +1,7 @@
 import { NextRequest } from 'next/server';
 import { GoogleGenAI } from '@google/genai';
+
+import { getServerGeminiApiKey } from '@/lib/server-user-tokens';
 import type { SectionType } from '@/lib/types';
 import { SECTION_LABELS } from '@/lib/types';
 
@@ -11,7 +13,7 @@ export async function POST(request: NextRequest) {
     return Response.json({ suggestions: [] });
   }
 
-  const apiKey = body.apiKey?.trim() || process.env.GEMINI_API_KEY;
+  const apiKey = await getServerGeminiApiKey(body.apiKey);
   if (!apiKey) return Response.json({ suggestions: [] });
 
   const sectionLabel = SECTION_LABELS[body.sectionType] ?? body.sectionType;
@@ -31,7 +33,7 @@ ${body.content}
   try {
     const genAI = new GoogleGenAI({ apiKey });
     const result = await genAI.models.generateContent({
-      model: 'gemini-2.5-flash',
+      model: 'gemma-4-31b-it',
       contents: prompt,
     });
     const raw = result.text?.trim() ?? '[]';

@@ -8,11 +8,13 @@ import {
   deleteResume,
   getResumes,
   getSections,
-} from '@/lib/supabase-db';
+} from '@/lib/notion-db';
 import {
   compactSectionContent,
   normalizeSectionContent,
 } from '@/lib/rich-text';
+import { getGeminiErrorResult } from '@/lib/gemini-errors';
+import { getServerGeminiApiKey } from '@/lib/server-user-tokens';
 import type {
   Resume,
   ResumeSection,
@@ -21,9 +23,7 @@ import type {
 } from '@/lib/types';
 import { SECTION_LABELS } from '@/lib/types';
 
-const GEMINI_QUOTA_ERROR_CODE = 'GEMINI_QUOTA_EXCEEDED';
-const GEMINI_QUOTA_ERROR_MESSAGE = '잠시 후에 다시 실행해주세요.';
-const DEFAULT_MODEL = 'gemini-2.5-flash';
+const DEFAULT_MODEL = 'gemma-4-31b-it';
 const JSON_FENCE_PATTERN = /^```(?:json)?\s*([\s\S]*?)\s*```$/i;
 const SECTION_TYPES = [
   'header',
@@ -88,34 +88,6 @@ function isSectionType(value: unknown): value is SectionType {
 function stripJsonFence(value: string): string {
   const match = value.trim().match(JSON_FENCE_PATTERN);
   return match?.[1] ?? value;
-}
-
-function collectErrorValues(value: unknown, depth = 0): string[] {
-  if (depth > 2) return [];
-
-  if (typeof value === 'string' || typeof value === 'number') {
-    return [String(value)];
-  }
-
-  if (value instanceof Error) {
-    return [value.message, ...collectErrorValues(value.cause, depth + 1)];
-  }
-
-  if (!isRecord(value)) return [];
-
-  return Object.values(value).flatMap((nestedValue) =>
-    collectErrorValues(nestedValue, depth + 1)
-  );
-}
-
-function isGeminiQuotaError(error: unknown): boolean {
-  const errorText = collectErrorValues(error).join(' ').toLowerCase();
-  return (
-    errorText.includes('429') ||
-    errorText.includes('quota') ||
-    errorText.includes('resource_exhausted') ||
-    errorText.includes('rate limit')
-  );
 }
 
 function buildSourceSnapshot(
@@ -248,7 +220,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const apiKey = body.apiKey?.trim() || process.env.GEMINI_API_KEY;
+  const apiKey = await getServerGeminiApiKey(body.apiKey);
   if (!apiKey) {
     return Response.json(
       { error: 'Gemini API 키를 설정해주세요.' },
@@ -312,13 +284,11 @@ export async function POST(request: NextRequest) {
       await deleteResume(auth, createdResume.id).catch(() => undefined);
     }
 
-    if (isGeminiQuotaError(error)) {
-      return Response.json(
-        { error: GEMINI_QUOTA_ERROR_MESSAGE, code: GEMINI_QUOTA_ERROR_CODE },
-        { status: 429 }
-      );
-    }
+    const geminiError = getGeminiErrorResult(error);
 
-    return Response.json({ error: 'AI 이력서 생성 실패' }, { status: 500 });
+    return Response.json(
+      { error: geminiError.message, code: geminiError.code },
+      { status: geminiError.status }
+    );
   }
 }

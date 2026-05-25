@@ -9,8 +9,13 @@ import {
   type MouseEvent as ReactMouseEvent,
 } from 'react';
 import { useEditor, EditorContent } from '@tiptap/react';
-import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
+import { Table } from '@tiptap/extension-table';
+import { TableCell } from '@tiptap/extension-table-cell';
+import { TableHeader } from '@tiptap/extension-table-header';
+import { TableRow } from '@tiptap/extension-table-row';
+import Underline from '@tiptap/extension-underline';
+import StarterKit from '@tiptap/starter-kit';
 
 import { normalizeRichTextValue } from '@/lib/rich-text';
 import type { RichTextDocument } from '@/lib/types';
@@ -20,6 +25,9 @@ interface RichTextFieldProps {
   onChange: (document: RichTextDocument) => void;
   className?: string;
   placeholder?: string;
+  enableTables?: boolean;
+  toolbarMode?: 'floating' | 'fixed';
+  editorClassName?: string;
 }
 
 interface ToolbarPosition {
@@ -29,7 +37,8 @@ interface ToolbarPosition {
 
 const TOOLBAR_EDGE_PADDING = 12;
 const TOOLBAR_GAP = 8;
-const TOOLBAR_WIDTH = 204;
+const FLOATING_TOOLBAR_WIDTH = 340;
+const FLOATING_TABLE_TOOLBAR_WIDTH = 640;
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max);
@@ -40,6 +49,9 @@ export function RichTextField({
   onChange,
   className = '',
   placeholder = '클릭하여 편집',
+  enableTables = false,
+  toolbarMode = 'floating',
+  editorClassName = '',
 }: RichTextFieldProps) {
   const wrapperRef = useRef<HTMLDivElement>(null);
   const [isFocused, setIsFocused] = useState(false);
@@ -47,7 +59,19 @@ export function RichTextField({
     useState<ToolbarPosition | null>(null);
 
   const editor = useEditor({
-    extensions: [StarterKit, Placeholder.configure({ placeholder })],
+    extensions: [
+      StarterKit,
+      Underline,
+      Placeholder.configure({ placeholder }),
+      ...(enableTables
+        ? [
+            Table.configure({ resizable: true }),
+            TableRow,
+            TableHeader,
+            TableCell,
+          ]
+        : []),
+    ],
     content: normalizeRichTextValue(value),
     immediatelyRender: false,
     onFocus: () => setIsFocused(true),
@@ -55,7 +79,7 @@ export function RichTextField({
     onUpdate: ({ editor: e }) => onChange(normalizeRichTextValue(e.getJSON())),
     editorProps: {
       attributes: {
-        class: 'rich-text-field outline-none min-h-[1em] cursor-text',
+        class: `rich-text-field outline-none min-h-[1em] cursor-text ${editorClassName}`,
       },
     },
   });
@@ -66,11 +90,14 @@ export function RichTextField({
       if (!wrapper) return;
 
       const rect = wrapper.getBoundingClientRect();
+      const toolbarWidth = enableTables
+        ? FLOATING_TABLE_TOOLBAR_WIDTH
+        : FLOATING_TOOLBAR_WIDTH;
       const maxLeft = Math.max(
         TOOLBAR_EDGE_PADDING,
         rect.width - TOOLBAR_EDGE_PADDING
       );
-      let left = rect.width / 2;
+      let left = Math.min(rect.width / 2, toolbarWidth / 2);
       let top = -TOOLBAR_GAP;
 
       if (clientX !== undefined && clientY !== undefined) {
@@ -87,7 +114,7 @@ export function RichTextField({
         top,
       });
     },
-    [editor]
+    [editor, enableTables]
   );
 
   useEffect(() => {
@@ -116,10 +143,20 @@ export function RichTextField({
   }, [updateToolbarPosition]);
 
   const toolbarStyle: CSSProperties = {
-    left: toolbarPosition?.left ?? TOOLBAR_WIDTH / 2,
+    left: toolbarPosition?.left ?? FLOATING_TOOLBAR_WIDTH / 2,
     top: toolbarPosition?.top ?? -TOOLBAR_GAP,
     transform: 'translate(-50%, -100%)',
   };
+  const isToolbarVisible = toolbarMode === 'fixed' || isFocused;
+  const toolbarClassName =
+    toolbarMode === 'fixed'
+      ? 'rich-text-toolbar sticky top-0 z-20 mb-2 flex flex-wrap items-center gap-1 rounded-md border border-gray-200 bg-white px-2 py-1.5 shadow-sm'
+      : 'rich-text-toolbar absolute z-20 flex max-w-[calc(100vw-2rem)] flex-wrap items-center gap-0.5 rounded-md border border-gray-200 bg-white px-1 py-0.5 shadow-md';
+
+  const buttonClassName = (isActive = false) =>
+    `flex h-7 min-w-7 items-center justify-center rounded px-1.5 text-xs transition-colors hover:bg-gray-100 ${
+      isActive ? 'bg-gray-200 text-gray-900' : 'text-gray-600'
+    }`;
 
   return (
     <div
@@ -129,10 +166,10 @@ export function RichTextField({
       onMouseDown={handleMouseDown}
       onMouseUp={handleMouseUp}
     >
-      {isFocused && (
+      {isToolbarVisible && (
         <div
-          className="rich-text-toolbar absolute z-20 flex items-center gap-0.5 rounded-md border border-gray-200 bg-white px-1 py-0.5 shadow-md"
-          style={toolbarStyle}
+          className={toolbarClassName}
+          style={toolbarMode === 'floating' ? toolbarStyle : undefined}
           onMouseDown={(e) => {
             e.preventDefault();
             e.stopPropagation();
@@ -141,7 +178,7 @@ export function RichTextField({
           <button
             type="button"
             onClick={() => editor?.chain().focus().toggleBold().run()}
-            className={`flex h-7 w-7 items-center justify-center rounded text-sm font-bold transition-colors hover:bg-gray-100 ${editor?.isActive('bold') ? 'bg-gray-200 text-gray-900' : 'text-gray-600'}`}
+            className={`${buttonClassName(editor?.isActive('bold'))} font-bold`}
             title="굵게"
           >
             B
@@ -149,7 +186,7 @@ export function RichTextField({
           <button
             type="button"
             onClick={() => editor?.chain().focus().toggleItalic().run()}
-            className={`flex h-7 w-7 items-center justify-center rounded text-sm italic transition-colors hover:bg-gray-100 ${editor?.isActive('italic') ? 'bg-gray-200 text-gray-900' : 'text-gray-600'}`}
+            className={`${buttonClassName(editor?.isActive('italic'))} italic`}
             title="기울임"
           >
             I
@@ -157,7 +194,7 @@ export function RichTextField({
           <button
             type="button"
             onClick={() => editor?.chain().focus().toggleUnderline().run()}
-            className={`flex h-7 w-7 items-center justify-center rounded text-sm underline transition-colors hover:bg-gray-100 ${editor?.isActive('underline') ? 'bg-gray-200 text-gray-900' : 'text-gray-600'}`}
+            className={`${buttonClassName(editor?.isActive('underline'))} underline`}
             title="밑줄"
           >
             U
@@ -165,7 +202,7 @@ export function RichTextField({
           <button
             type="button"
             onClick={() => editor?.chain().focus().toggleStrike().run()}
-            className={`flex h-7 w-7 items-center justify-center rounded text-sm line-through transition-colors hover:bg-gray-100 ${editor?.isActive('strike') ? 'bg-gray-200 text-gray-900' : 'text-gray-600'}`}
+            className={`${buttonClassName(editor?.isActive('strike'))} line-through`}
             title="취소선"
           >
             S
@@ -174,19 +211,106 @@ export function RichTextField({
           <button
             type="button"
             onClick={() => editor?.chain().focus().toggleBulletList().run()}
-            className={`flex h-7 w-7 items-center justify-center rounded text-base transition-colors hover:bg-gray-100 ${editor?.isActive('bulletList') ? 'bg-gray-200 text-gray-900' : 'text-gray-600'}`}
+            className={buttonClassName(editor?.isActive('bulletList'))}
             title="글머리 기호"
           >
-            ≡
+            •
           </button>
           <button
             type="button"
             onClick={() => editor?.chain().focus().toggleOrderedList().run()}
-            className={`flex h-7 w-7 items-center justify-center rounded text-xs transition-colors hover:bg-gray-100 ${editor?.isActive('orderedList') ? 'bg-gray-200 text-gray-900' : 'text-gray-600'}`}
+            className={buttonClassName(editor?.isActive('orderedList'))}
             title="번호 목록"
           >
             1.
           </button>
+          <button
+            type="button"
+            onClick={() =>
+              editor?.chain().focus().liftListItem('listItem').run()
+            }
+            className={buttonClassName()}
+            title="내어쓰기"
+          >
+            ←
+          </button>
+          <button
+            type="button"
+            onClick={() =>
+              editor?.chain().focus().sinkListItem('listItem').run()
+            }
+            className={buttonClassName()}
+            title="들여쓰기"
+          >
+            →
+          </button>
+          {enableTables && (
+            <>
+              <div className="mx-0.5 h-4 w-px bg-gray-200" />
+              <button
+                type="button"
+                onClick={() =>
+                  editor
+                    ?.chain()
+                    .focus()
+                    .insertTable({ rows: 3, cols: 3, withHeaderRow: true })
+                    .run()
+                }
+                className={buttonClassName(editor?.isActive('table'))}
+                title="표 삽입"
+              >
+                표
+              </button>
+              <button
+                type="button"
+                onClick={() => editor?.chain().focus().addColumnAfter().run()}
+                className={buttonClassName()}
+                title="오른쪽 열 추가"
+              >
+                열+
+              </button>
+              <button
+                type="button"
+                onClick={() => editor?.chain().focus().deleteColumn().run()}
+                className={buttonClassName()}
+                title="열 삭제"
+              >
+                열-
+              </button>
+              <button
+                type="button"
+                onClick={() => editor?.chain().focus().addRowAfter().run()}
+                className={buttonClassName()}
+                title="아래 행 추가"
+              >
+                행+
+              </button>
+              <button
+                type="button"
+                onClick={() => editor?.chain().focus().deleteRow().run()}
+                className={buttonClassName()}
+                title="행 삭제"
+              >
+                행-
+              </button>
+              <button
+                type="button"
+                onClick={() => editor?.chain().focus().toggleHeaderRow().run()}
+                className={buttonClassName()}
+                title="헤더 행 전환"
+              >
+                H
+              </button>
+              <button
+                type="button"
+                onClick={() => editor?.chain().focus().deleteTable().run()}
+                className={buttonClassName()}
+                title="표 삭제"
+              >
+                삭제
+              </button>
+            </>
+          )}
         </div>
       )}
       <EditorContent editor={editor} />

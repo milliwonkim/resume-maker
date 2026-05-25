@@ -66,12 +66,6 @@ This version has breaking changes — APIs, conventions, and file structure may 
 - Use HTTP status codes correctly: 200 OK, 201 Created, 400 Bad Request, 401 Unauthorized, 403 Forbidden, 404 Not Found, 409 Conflict, 500 Internal Server Error.
 - Authenticate and authorize every protected route handler. Do not rely on the frontend to hide routes.
 
-## Supabase
-
-- Never expose the service role key to the client. Use it only in server-side code.
-- Use Row Level Security (RLS) policies as the primary authorization layer. Do not rely solely on application-level checks.
-- Always handle the `error` returned from Supabase calls — never ignore it.
-
 ## Error Handling
 
 - Use `try/catch` around all async operations that touch the network or filesystem.
@@ -84,6 +78,12 @@ This version has breaking changes — APIs, conventions, and file structure may 
 - Avoid creating new objects/arrays/functions inside JSX props when the component re-renders frequently. Memoize when profiling shows it matters — not preemptively.
 - Use `next/image` for all images. Always provide `width`, `height`, or `fill` + a sized container.
 - Lazy-load heavy client components with `dynamic(() => import(...), { ssr: false })` when they are not needed for first paint.
+
+## Resume AI
+
+- When helping write or refine resume content, structure achievements around one of these flows:
+  - Problem definition → hypothesis → execution and validation → result
+  - Problem definition → solution design → stakeholder collaboration → result
 
 ## Security
 

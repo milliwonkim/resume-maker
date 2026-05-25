@@ -26,18 +26,27 @@ importers:
       '@pdf-lib/fontkit':
         specifier: ^1.1.1
         version: 1.1.1
-      '@supabase/ssr':
-        specifier: ^0.10.3
-        version: 0.10.3(@supabase/supabase-js@2.105.4)
-      '@supabase/supabase-js':
-        specifier: ^2.105.4
-        version: 2.105.4
       '@tanstack/react-query':
         specifier: ^5.100.10
         version: 5.100.10(react@19.2.4)
       '@tiptap/extension-placeholder':
         specifier: ^3.23.4
         version: 3.23.4(@tiptap/extensions@3.23.4(@tiptap/core@3.23.4(@tiptap/pm@3.23.4))(@tiptap/pm@3.23.4))
+      '@tiptap/extension-table':
+        specifier: 3.23.4
+        version: 3.23.4(@tiptap/core@3.23.4(@tiptap/pm@3.23.4))(@tiptap/pm@3.23.4)
+      '@tiptap/extension-table-cell':
+        specifier: 3.23.4
+        version: 3.23.4(@tiptap/extension-table@3.23.4(@tiptap/core@3.23.4(@tiptap/pm@3.23.4))(@tiptap/pm@3.23.4))
+      '@tiptap/extension-table-header':
+        specifier: 3.23.4
+        version: 3.23.4(@tiptap/extension-table@3.23.4(@tiptap/core@3.23.4(@tiptap/pm@3.23.4))(@tiptap/pm@3.23.4))
+      '@tiptap/extension-table-row':
+        specifier: 3.23.4
+        version: 3.23.4(@tiptap/extension-table@3.23.4(@tiptap/core@3.23.4(@tiptap/pm@3.23.4))(@tiptap/pm@3.23.4))
+      '@tiptap/extension-underline':
+        specifier: 3.23.4
+        version: 3.23.4(@tiptap/core@3.23.4(@tiptap/pm@3.23.4))
       '@tiptap/pm':
         specifier: ^3.23.4
         version: 3.23.4
@@ -602,38 +611,6 @@ packages:
   '@rtsao/scc@1.1.0':
     resolution: {integrity: sha512-zt6OdqaDoOnJ1ZYsCYGt9YmWzDXl4vQdKTyJev62gFhRGKdx7mcT54V9KIjg+d2wi9EXsPvAPKe7i7WjfVWB8g==}
 
-  '@supabase/auth-js@2.105.4':
-    resolution: {integrity: sha512-Ejfa37M5xoIwoxVebxRahnwubPo8g22qkXQ4p50+N9MIvU9UZoN+A8dwVPtczzGf8oV/YXN80ZPxK4aWXuSN/A==}
-    engines: {node: '>=20.0.0'}
-
-  '@supabase/functions-js@2.105.4':
-    resolution: {integrity: sha512-JVNKbBft3Qkja+WlGaE026AJ2AH9K0UTsxsfvEIHgd4zFrBor4BYRCrYFrv9IDsvVqkF72wKDsODJl5GY/C4tA==}
-    engines: {node: '>=20.0.0'}
-
-  '@supabase/phoenix@0.4.2':
-    resolution: {integrity: sha512-YSAGnmDAfuleFCVt3CeurQZAhxRfXWeZIIkwp7NhYzQ1UwW6ePSnzsFAiUm/mbCkfoCf70QQHKW/K6RKh52a4A==}
-
-  '@supabase/postgrest-js@2.105.4':
-    resolution: {integrity: sha512-SppIyLo/kTwIlz1qpv2HN1EQqBg0GVktrDDFsXygYROha3MgVn4rT7p5EjFHFqXQm2rdRGb/BI7bc+jr10m91w==}
-    engines: {node: '>=20.0.0'}
-
-  '@supabase/realtime-js@2.105.4':
-    resolution: {integrity: sha512-6ov6c59+8D9h7q4M4Gy/uDJlC0Akxl9/714Y+6vJ+Sijuc16TS/p5DwhfRCLNcIhNiej1gEt+CQUwsjiPt4PxQ==}
-    engines: {node: '>=20.0.0'}
-
-  '@supabase/ssr@0.10.3':
-    resolution: {integrity: sha512-ux2CJgX89h0Fz2lY7ZNafNG2SkXpyRc5dz77K9eKeBLPdtywQixKwIuetDeIViAJBp/buOUVmgj8PVesOklNpw==}
-    peerDependencies:
-      '@supabase/supabase-js': ^2.105.3
-
-  '@supabase/storage-js@2.105.4':
-    resolution: {integrity: sha512-Jx+pzMP1Whjof2PWHoVBUA75/p7PQE9CqKBzn1oXVyJDOggMLSH2OzVWwsXYaxEpdC1K/KltwmOX44nL3LHl9g==}
-    engines: {node: '>=20.0.0'}
-
-  '@supabase/supabase-js@2.105.4':
-    resolution: {integrity: sha512-cEnx+k49knU+qdIP7rXwR6fqEXPHZs+74xFK1R0S8MgQ7v9tbePVdGxvO03n3bPympMdJWVLadARBfU4TgNHCQ==}
-    engines: {node: '>=20.0.0'}
-
   '@swc/helpers@0.5.15':
     resolution: {integrity: sha512-JQ5TuMi45Owi4/BIMAJBoSQoOJu12oOk/gADqlcUL9JEdHB8vyjUSsxqeNXnmXHjYKMi2WcYtezGEEhqUI/E2g==}
 
@@ -854,6 +831,27 @@ packages:
     resolution: {integrity: sha512-Vnq5vW801zPbu1LtKeA5k4R241jY+hRjXeijYwIPxy15KzIiipY12518HiCf6/8kkRbMxgOfdYg9X4BRV3HV3g==}
     peerDependencies:
       '@tiptap/core': 3.23.4
+
+  '@tiptap/extension-table-cell@3.23.4':
+    resolution: {integrity: sha512-GmLLF9w7ExXhieshDnwC2U4kE8EM3TliDnHYX7uXOnSptWqASku6hOFw0f1AT5MDJog9NPzRo+adGVRHS9kjTQ==}
+    peerDependencies:
+      '@tiptap/extension-table': 3.23.4
+
+  '@tiptap/extension-table-header@3.23.4':
+    resolution: {integrity: sha512-5IXIHjpCpuZ06SmOoVsnK4VoOhd/G6yLiDtP3Azcf+KUI5539ryWE9I9EAqgalV2HcJMMYX9MQpl5WReHRGETw==}
+    peerDependencies:
+      '@tiptap/extension-table': 3.23.4
+
+  '@tiptap/extension-table-row@3.23.4':
+    resolution: {integrity: sha512-kqQt0I4cm2E+NNLpZ5rtox53Vgzyy19ZczvJ66Ao6BZkXXKqYXSRJc4q0jGNPX8hHhvHBpHmffcz5hdT/1XtNQ==}
+    peerDependencies:
+      '@tiptap/extension-table': 3.23.4
+
+  '@tiptap/extension-table@3.23.4':
+    resolution: {integrity: sha512-TRh6JMTRYXCWpwavGt3aAHH2f51ZzkhurfW3XvrURG3It8MvfuuY1xB1xba1ss5c0QLWlrKx6GVaSXrUCdFLlg==}
+    peerDependencies:
+      '@tiptap/core': 3.23.4
+      '@tiptap/pm': 3.23.4
 
   '@tiptap/extension-text@3.23.4':
     resolution: {integrity: sha512-q9kxver/MR18p66aWZHSPycnr9hcBFyVGeGj8gf+BQCzn5hpvtSYTfLvk1nq8GFhygdQ9/e3f7B5ovrm/jnpvw==}
@@ -1245,10 +1243,6 @@ packages:
 
   convert-source-map@2.0.0:
     resolution: {integrity: sha512-Kvp459HrV2FEJ1CAsi1Ku+MY3kasH19TFykTz2xWmMeq6bk2NU3XXvfJ+Q61m0xktWwt+1HSYf3JZsTms3aRJg==}
-
-  cookie@1.1.1:
-    resolution: {integrity: sha512-ei8Aos7ja0weRpFzJnEA9UHJ/7XQmqglbRwnf2ATjcB9Wq874VKH9kfjjirM6UhU2/E5fFYadylyhFldcqSidQ==}
-    engines: {node: '>=18'}
 
   core-js@3.49.0:
     resolution: {integrity: sha512-es1U2+YTtzpwkxVLwAFdSpaIMyQaq0PBgm3YD1W3Qpsn1NAmO3KSgZfu+oGSWVu6NvLHoHCV/aYcsE5wiB7ALg==}
@@ -1686,10 +1680,6 @@ packages:
   https-proxy-agent@7.0.6:
     resolution: {integrity: sha512-vK9P5/iUfdl95AI+JVyUuIcVtd4ofvtrOr3HNtM2yxC9bnMbEdp3x01OhQNnjb8IJYi38VlTE3mBXwcfvywuSw==}
     engines: {node: '>= 14'}
-
-  iceberg-js@0.8.1:
-    resolution: {integrity: sha512-1dhVQZXhcHje7798IVM+xoo/1ZdVfzOMIc8/rgVSijRK38EDqOJoGula9N/8ZI5RD8QTxNQtK/Gozpr+qUqRRA==}
-    engines: {node: '>=20.0.0'}
 
   ignore@5.3.2:
     resolution: {integrity: sha512-hsBTNUqQTDwkWtcdYI2i06Y/nUBEsNEDJKjWdigLvegy8kDuJAS8uRlpkkcQpyEXL0Z/pjDy5HBmMjRCJ2gq+g==}
@@ -3128,43 +3118,6 @@ snapshots:
 
   '@rtsao/scc@1.1.0': {}
 
-  '@supabase/auth-js@2.105.4':
-    dependencies:
-      tslib: 2.8.1
-
-  '@supabase/functions-js@2.105.4':
-    dependencies:
-      tslib: 2.8.1
-
-  '@supabase/phoenix@0.4.2': {}
-
-  '@supabase/postgrest-js@2.105.4':
-    dependencies:
-      tslib: 2.8.1
-
-  '@supabase/realtime-js@2.105.4':
-    dependencies:
-      '@supabase/phoenix': 0.4.2
-      tslib: 2.8.1
-
-  '@supabase/ssr@0.10.3(@supabase/supabase-js@2.105.4)':
-    dependencies:
-      '@supabase/supabase-js': 2.105.4
-      cookie: 1.1.1
-
-  '@supabase/storage-js@2.105.4':
-    dependencies:
-      iceberg-js: 0.8.1
-      tslib: 2.8.1
-
-  '@supabase/supabase-js@2.105.4':
-    dependencies:
-      '@supabase/auth-js': 2.105.4
-      '@supabase/functions-js': 2.105.4
-      '@supabase/postgrest-js': 2.105.4
-      '@supabase/realtime-js': 2.105.4
-      '@supabase/storage-js': 2.105.4
-
   '@swc/helpers@0.5.15':
     dependencies:
       tslib: 2.8.1
@@ -3347,6 +3300,23 @@ snapshots:
   '@tiptap/extension-strike@3.23.4(@tiptap/core@3.23.4(@tiptap/pm@3.23.4))':
     dependencies:
       '@tiptap/core': 3.23.4(@tiptap/pm@3.23.4)
+
+  '@tiptap/extension-table-cell@3.23.4(@tiptap/extension-table@3.23.4(@tiptap/core@3.23.4(@tiptap/pm@3.23.4))(@tiptap/pm@3.23.4))':
+    dependencies:
+      '@tiptap/extension-table': 3.23.4(@tiptap/core@3.23.4(@tiptap/pm@3.23.4))(@tiptap/pm@3.23.4)
+
+  '@tiptap/extension-table-header@3.23.4(@tiptap/extension-table@3.23.4(@tiptap/core@3.23.4(@tiptap/pm@3.23.4))(@tiptap/pm@3.23.4))':
+    dependencies:
+      '@tiptap/extension-table': 3.23.4(@tiptap/core@3.23.4(@tiptap/pm@3.23.4))(@tiptap/pm@3.23.4)
+
+  '@tiptap/extension-table-row@3.23.4(@tiptap/extension-table@3.23.4(@tiptap/core@3.23.4(@tiptap/pm@3.23.4))(@tiptap/pm@3.23.4))':
+    dependencies:
+      '@tiptap/extension-table': 3.23.4(@tiptap/core@3.23.4(@tiptap/pm@3.23.4))(@tiptap/pm@3.23.4)
+
+  '@tiptap/extension-table@3.23.4(@tiptap/core@3.23.4(@tiptap/pm@3.23.4))(@tiptap/pm@3.23.4)':
+    dependencies:
+      '@tiptap/core': 3.23.4(@tiptap/pm@3.23.4)
+      '@tiptap/pm': 3.23.4
 
   '@tiptap/extension-text@3.23.4(@tiptap/core@3.23.4(@tiptap/pm@3.23.4))':
     dependencies:
@@ -3796,8 +3766,6 @@ snapshots:
   concat-map@0.0.1: {}
 
   convert-source-map@2.0.0: {}
-
-  cookie@1.1.1: {}
 
   core-js@3.49.0:
     optional: true
@@ -4402,8 +4370,6 @@ snapshots:
       debug: 4.4.3
     transitivePeerDependencies:
       - supports-color
-
-  iceberg-js@0.8.1: {}
 
   ignore@5.3.2: {}
 

@@ -5,7 +5,7 @@ import {
   updateResumeTitle,
   deleteResume,
   getSections,
-} from '@/lib/supabase-db';
+} from '@/lib/notion-db';
 
 export async function GET(
   _request: NextRequest,

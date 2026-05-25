@@ -9,6 +9,7 @@ import type {
   ProjectItem,
   ProjectsContent,
   ResumeImage,
+  RichTextAttributeValue,
   RichTextDocument,
   RichTextMark,
   RichTextMarkType,
@@ -214,6 +215,41 @@ function sanitizeMarks(value: unknown): RichTextMark[] | undefined {
   return marks.length > 0 ? marks : undefined;
 }
 
+function sanitizeAttributeValue(value: unknown): RichTextAttributeValue | null {
+  if (
+    typeof value === 'string' ||
+    typeof value === 'number' ||
+    typeof value === 'boolean' ||
+    value === null
+  ) {
+    return value;
+  }
+
+  if (Array.isArray(value) && value.every((item) => typeof item === 'number')) {
+    return value;
+  }
+
+  return null;
+}
+
+function sanitizeAttrs(
+  value: unknown
+): Record<string, RichTextAttributeValue> | undefined {
+  if (!isRecord(value)) return undefined;
+
+  const attrs = Object.entries(value).reduce<
+    Record<string, RichTextAttributeValue>
+  >((result, [key, attrValue]) => {
+    const sanitized = sanitizeAttributeValue(attrValue);
+    if (sanitized !== null || attrValue === null) {
+      result[key] = sanitized;
+    }
+    return result;
+  }, {});
+
+  return Object.keys(attrs).length > 0 ? attrs : undefined;
+}
+
 function sanitizeNode(value: unknown): RichTextNode | null {
   if (!isRecord(value) || typeof value.type !== 'string') return null;
 
@@ -238,12 +274,17 @@ function sanitizeNode(value: unknown): RichTextNode | null {
     'orderedList',
     'listItem',
     'hardBreak',
+    'table',
+    'tableRow',
+    'tableHeader',
+    'tableCell',
   ]);
   if (!allowedTypes.has(value.type)) return null;
 
   return {
     type: value.type,
     content: content && content.length > 0 ? content : undefined,
+    attrs: sanitizeAttrs(value.attrs),
   };
 }
 
@@ -484,11 +525,16 @@ export function richTextToPlainText(value: RichTextDocument): string {
     if (node.type === 'text') return node.text ?? '';
     if (node.type === 'hardBreak') return '\n';
     const text = node.content?.map(walk).join('') ?? '';
+    if (node.type === 'tableHeader' || node.type === 'tableCell') {
+      return `${text.trim()}\t`;
+    }
+    if (node.type === 'tableRow') return `${text.trimEnd()}\n`;
     if (
       node.type === 'paragraph' ||
       node.type === 'listItem' ||
       node.type === 'bulletList' ||
-      node.type === 'orderedList'
+      node.type === 'orderedList' ||
+      node.type === 'table'
     ) {
       return `${text}\n`;
     }
@@ -531,6 +577,18 @@ function richTextNodeToMarkdown(node: RichTextNode, index = 0): string {
 
   if (node.type === 'listItem') {
     return content.join('\n').trim();
+  }
+
+  if (node.type === 'tableHeader' || node.type === 'tableCell') {
+    return content.join('').trim();
+  }
+
+  if (node.type === 'tableRow') {
+    return `| ${content.join(' | ')} |`;
+  }
+
+  if (node.type === 'table') {
+    return content.join('\n');
   }
 
   if (node.type === 'paragraph') {

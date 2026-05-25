@@ -1,4 +1,6 @@
-import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { cookies } from 'next/headers';
+
+import { USER_TOKEN_COOKIE_NAMES } from '@/lib/user-token-cookies';
 
 export interface AuthenticatedUser {
   id: string;
@@ -7,25 +9,21 @@ export interface AuthenticatedUser {
 }
 
 export async function getAuthenticatedUser(): Promise<AuthenticatedUser | null> {
-  const supabase = await createServerSupabaseClient();
-  const {
-    data: { user },
-    error,
-  } = await supabase.auth.getUser();
+  const cookieStore = await cookies();
+  const notionToken = cookieStore.get(USER_TOKEN_COOKIE_NAMES.notionToken);
+  const notionDatabaseId = cookieStore.get(
+    USER_TOKEN_COOKIE_NAMES.notionDatabaseId
+  );
 
-  if (error || !user) return null;
+  if (notionToken && notionDatabaseId) {
+    return {
+      id: 'notion-user',
+      accessToken: notionToken.value,
+      email: 'Notion 데이터베이스',
+    };
+  }
 
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
-
-  if (!session?.access_token) return null;
-
-  return {
-    id: user.id,
-    accessToken: session.access_token,
-    email: user.email ?? null,
-  };
+  return null;
 }
 
 export function unauthorizedResponse() {

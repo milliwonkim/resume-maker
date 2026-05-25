@@ -48,6 +48,14 @@ body {
   list-style: decimal;
 }
 
+.rich-text-field ul ul,
+.rich-text-field ol ol,
+.rich-text-field ul ol,
+.rich-text-field ol ul {
+  margin-top: 0.15em;
+  margin-bottom: 0.15em;
+}
+
 .rich-text-field li {
   margin: 0.15em 0;
   padding-left: 0.1rem;
@@ -67,6 +75,40 @@ body {
 
 .rich-text-field u {
   text-decoration: underline;
+}
+
+.rich-text-field .tableWrapper {
+  margin: 0.75rem 0;
+  overflow-x: auto;
+}
+
+.rich-text-field table {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: collapse;
+}
+
+.rich-text-field th,
+.rich-text-field td {
+  position: relative;
+  min-width: 5rem;
+  border: 1px solid #d1d5db;
+  padding: 0.35rem 0.5rem;
+  vertical-align: top;
+}
+
+.rich-text-field th {
+  background: #f3f4f6;
+  font-weight: 700;
+}
+
+.rich-text-field .selectedCell::after {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  content: '';
+  background: rgb(59 130 246 / 0.12);
 }
 
 .rich-text-field p.is-editor-empty:first-child::before {

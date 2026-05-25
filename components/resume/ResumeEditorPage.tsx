@@ -2,7 +2,13 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import fontkit from '@pdf-lib/fontkit';
-import { PDFDocument, PageSizes, rgb, type PDFFont, type PDFPage } from 'pdf-lib';
+import {
+  PDFDocument,
+  PageSizes,
+  rgb,
+  type PDFFont,
+  type PDFPage,
+} from 'pdf-lib';
 import { useRouter } from 'next/navigation';
 
 import { useResumeStore } from '@/store/resume';
@@ -10,6 +16,7 @@ import { useAIStore } from '@/store/ai';
 import { useAIJobsStore, type AIJob } from '@/store/ai-jobs';
 import { applyAIResult } from '@/lib/ai-apply';
 import { richTextToPlainText } from '@/lib/rich-text';
+import { ResumeNotesPanel } from '@/components/notes/ResumeNotesPanel';
 import { ResumeEditor, type ResumeEditorRef } from './ResumeEditor';
 import { SettingsDialog } from '@/components/settings/SettingsDialog';
 import { AIPanel } from '@/components/ai/AIPanel';
@@ -99,7 +106,12 @@ function getTextFont(fonts: PdfFonts, type: 'regular' | 'bold' = 'regular') {
   return type === 'bold' ? fonts.bold : fonts.regular;
 }
 
-function splitLongWord(word: string, font: PDFFont, size: number, maxWidth: number) {
+function splitLongWord(
+  word: string,
+  font: PDFFont,
+  size: number,
+  maxWidth: number
+) {
   const chunks: string[] = [];
   let current = '';
   for (const char of word) {
@@ -187,7 +199,8 @@ function drawParagraphs(context: PdfContext, paragraphs: PdfParagraph[]) {
     const indent = paragraph.indent ?? 0;
     const font = getTextFont(context.fonts, paragraph.font);
     const lines = wrapText(paragraph.text, font, size, getContentWidth(indent));
-    const paragraphHeight = lines.length * lineHeight + (paragraph.gapAfter ?? 0);
+    const paragraphHeight =
+      lines.length * lineHeight + (paragraph.gapAfter ?? 0);
 
     if (!blockFitsOnePage && paragraphHeight <= getUsableHeight()) {
       ensureSpace(context, paragraphHeight);
@@ -286,8 +299,13 @@ function drawTextSection(
   context.y -= PDF_SECTION_GAP;
 }
 
-function drawExperienceSection(context: PdfContext, content: ExperienceContent) {
-  const items = content.items.filter((item) => !isBlank(item.company) || !isBlank(item.role));
+function drawExperienceSection(
+  context: PdfContext,
+  content: ExperienceContent
+) {
+  const items = content.items.filter(
+    (item) => !isBlank(item.company) || !isBlank(item.role)
+  );
   if (items.length === 0) return;
 
   drawSectionTitle(context, '경력');
@@ -306,10 +324,14 @@ function drawExperienceSection(context: PdfContext, content: ExperienceContent) 
       { text: meta, size: 8.5, color: PDF_MUTED_COLOR, gapAfter: 4 },
     ];
 
-    const projects = item.projects?.filter((project) => !isBlank(project.name)) ?? [];
+    const projects =
+      item.projects?.filter((project) => !isBlank(project.name)) ?? [];
     if (projects.length > 0) {
       projects.forEach((project) => {
-        const projectPeriod = compact([project.startDate, project.endDate]).join(' - ');
+        const projectPeriod = compact([
+          project.startDate,
+          project.endDate,
+        ]).join(' - ');
         paragraphs.push({
           text: compact([project.name, projectPeriod]).join(' | '),
           font: 'bold',
@@ -330,7 +352,9 @@ function drawExperienceSection(context: PdfContext, content: ExperienceContent) 
           ['역할', project.ownership],
           ['성과', project.achievement],
         ].forEach(([label, value]) => {
-          const text = richTextToExportText(value as RichTextDocument | undefined);
+          const text = richTextToExportText(
+            value as RichTextDocument | undefined
+          );
           if (!isBlank(text)) {
             paragraphs.push({
               text: `${label}: ${text}`,
@@ -355,7 +379,9 @@ function drawExperienceSection(context: PdfContext, content: ExperienceContent) 
         ['역할', item.ownership],
         ['성과', item.achievement],
       ].forEach(([label, value]) => {
-        const text = richTextToExportText(value as RichTextDocument | undefined);
+        const text = richTextToExportText(
+          value as RichTextDocument | undefined
+        );
         if (!isBlank(text)) {
           paragraphs.push({ text: `${label}: ${text}`, size: 9, gapAfter: 2 });
         }
@@ -377,9 +403,9 @@ function drawEducationSection(context: PdfContext, content: EducationContent) {
     const major = compact([
       item.degree,
       item.field,
-      ...((item.additionalMajors ?? []).map((majorItem) =>
+      ...(item.additionalMajors ?? []).map((majorItem) =>
         compact([majorItem.label, majorItem.field]).join(': ')
-      )),
+      ),
       item.highSchoolCategory,
     ]).join(' / ');
     const meta = compact([
@@ -436,12 +462,21 @@ function drawProjectsSection(context: PdfContext, content: ProjectsContent) {
   context.y -= PDF_SECTION_GAP - PDF_ITEM_GAP;
 }
 
+async function loadPdfFont(url: string) {
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(`PDF font request failed: ${response.status}`);
+  }
+
+  return response.arrayBuffer();
+}
+
 async function createTextPdf(sections: ResumeSection[]) {
   const document = await PDFDocument.create();
   document.registerFontkit(fontkit);
   const [regularFontBytes, boldFontBytes] = await Promise.all([
-    fetch(PDF_REGULAR_FONT_URL).then((response) => response.arrayBuffer()),
-    fetch(PDF_BOLD_FONT_URL).then((response) => response.arrayBuffer()),
+    loadPdfFont(PDF_REGULAR_FONT_URL),
+    loadPdfFont(PDF_BOLD_FONT_URL),
   ]);
   const fonts: PdfFonts = {
     regular: await document.embedFont(regularFontBytes, { subset: true }),
@@ -463,10 +498,18 @@ async function createTextPdf(sections: ResumeSection[]) {
         drawHeaderSection(context, section.content as HeaderContent);
       }
       if (section.type === 'summary') {
-        drawTextSection(context, '자기소개', (section.content as SummaryContent).text);
+        drawTextSection(
+          context,
+          '자기소개',
+          (section.content as SummaryContent).text
+        );
       }
       if (section.type === 'text') {
-        drawTextSection(context, '일반 텍스트', (section.content as TextContent).text);
+        drawTextSection(
+          context,
+          '일반 텍스트',
+          (section.content as TextContent).text
+        );
       }
       if (section.type === 'experience') {
         drawExperienceSection(context, section.content as ExperienceContent);
@@ -734,7 +777,10 @@ export function ResumeEditorPage({ resumeId }: Props) {
     setIsExportingPdf(true);
     try {
       const bytes = await createTextPdf(sections);
-      downloadBytes(bytes, getExportFileName(pendingTitle ?? currentResume?.title));
+      downloadBytes(
+        bytes,
+        getExportFileName(pendingTitle ?? currentResume?.title)
+      );
     } finally {
       setIsExportingPdf(false);
     }
@@ -799,7 +845,9 @@ export function ResumeEditorPage({ resumeId }: Props) {
                   </>
                 ) : (
                   <>
-                    <span className="flex h-4 w-4 items-center justify-center rounded-full bg-green-100 text-xs text-green-600">✓</span>
+                    <span className="flex h-4 w-4 items-center justify-center rounded-full bg-green-100 text-xs text-green-600">
+                      ✓
+                    </span>
                     <span className="hidden sm:inline">AI 완료</span>
                   </>
                 )}
@@ -910,12 +958,17 @@ export function ResumeEditorPage({ resumeId }: Props) {
 
       {/* Editor area */}
       <main className="overflow-x-auto px-2 py-4 sm:px-4 sm:py-10 print:bg-white print:p-0">
-        <ResumeEditor
-          ref={editorRef}
-          resumeId={resumeId}
-          autoSave={autoSave}
-          onPendingChange={setHasPendingEditorChanges}
-        />
+        <div className="mx-auto flex max-w-7xl flex-col gap-4 xl:flex-row xl:items-start">
+          <div className="min-w-0 flex-1">
+            <ResumeEditor
+              ref={editorRef}
+              resumeId={resumeId}
+              autoSave={autoSave}
+              onPendingChange={setHasPendingEditorChanges}
+            />
+          </div>
+          <ResumeNotesPanel resumeId={resumeId} />
+        </div>
       </main>
 
       {settingsOpen && (
@@ -928,7 +981,9 @@ export function ResumeEditorPage({ resumeId }: Props) {
           <div className="flex w-full max-w-lg flex-col rounded-t-2xl bg-white shadow-2xl sm:rounded-2xl">
             {/* Header */}
             <div className="flex shrink-0 items-center justify-between border-b border-gray-100 px-5 py-4">
-              <span className="text-base font-semibold text-gray-900">AI 작업 현황</span>
+              <span className="text-base font-semibold text-gray-900">
+                AI 작업 현황
+              </span>
               <div className="flex items-center gap-2">
                 {jobs.some((j) => j.status !== 'running') && (
                   <button
@@ -950,7 +1005,7 @@ export function ResumeEditorPage({ resumeId }: Props) {
             </div>
 
             {/* Job list */}
-            <ul className="flex-1 overflow-y-auto divide-y divide-gray-50 px-5 py-2">
+            <ul className="flex-1 divide-y divide-gray-50 overflow-y-auto px-5 py-2">
               {jobs.map((job) => (
                 <li key={job.id} className="flex items-center gap-3 py-3">
                   {/* Status icon */}
@@ -958,15 +1013,21 @@ export function ResumeEditorPage({ resumeId }: Props) {
                     <span className="h-5 w-5 shrink-0 animate-spin rounded-full border-2 border-violet-400 border-t-transparent" />
                   )}
                   {job.status === 'completed' && (
-                    <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-green-100 text-xs text-green-600">✓</span>
+                    <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-green-100 text-xs text-green-600">
+                      ✓
+                    </span>
                   )}
                   {job.status === 'error' && (
-                    <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-red-100 text-xs text-red-500">✕</span>
+                    <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-red-100 text-xs text-red-500">
+                      ✕
+                    </span>
                   )}
 
                   {/* Job info */}
                   <div className="min-w-0 flex-1">
-                    <p className="text-sm font-medium text-gray-900">{job.sectionLabel}</p>
+                    <p className="text-sm font-medium text-gray-900">
+                      {job.sectionLabel}
+                    </p>
                     <p className="text-xs text-gray-400">
                       {job.mode === 'generate' ? 'AI 생성' : 'AI 수정'}
                       {job.status === 'running' && ' · 진행 중...'}
@@ -1014,26 +1075,28 @@ export function ResumeEditorPage({ resumeId }: Props) {
       )}
 
       {/* AI panel reopened from navbar for a completed job */}
-      {selectedJob && (() => {
-        const section = sections.find((s) => s.id === selectedJob.sectionId);
-        if (!section) return null;
-        return (
-          <AIPanel
-            sectionId={selectedJob.sectionId}
-            mode={selectedJob.mode}
-            sectionType={selectedJob.sectionType}
-            currentContent={section.content}
-            preloadedResult={selectedJob.result}
-            onApply={(text) => {
-              const content = applyAIResult(selectedJob.sectionType, text);
-              if (content !== null) updateSectionContent(selectedJob.sectionId, content);
-              removeJob(selectedJob.id);
-              setSelectedJob(null);
-            }}
-            onClose={() => setSelectedJob(null)}
-          />
-        );
-      })()}
+      {selectedJob &&
+        (() => {
+          const section = sections.find((s) => s.id === selectedJob.sectionId);
+          if (!section) return null;
+          return (
+            <AIPanel
+              sectionId={selectedJob.sectionId}
+              mode={selectedJob.mode}
+              sectionType={selectedJob.sectionType}
+              currentContent={section.content}
+              preloadedResult={selectedJob.result}
+              onApply={(text) => {
+                const content = applyAIResult(selectedJob.sectionType, text);
+                if (content !== null)
+                  updateSectionContent(selectedJob.sectionId, content);
+                removeJob(selectedJob.id);
+                setSelectedJob(null);
+              }}
+              onClose={() => setSelectedJob(null)}
+            />
+          );
+        })()}
 
       {/* Leave confirmation modal */}
       {showLeaveConfirm && (
