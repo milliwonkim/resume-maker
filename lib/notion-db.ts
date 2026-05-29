@@ -17,8 +17,8 @@ import type {
 const NOTION_VERSION = '2022-06-28';
 const JSON_CHUNK_SIZE = 1800;
 const RESUME_PAGE_CONTENT_KIND = 'resume-content';
-const RESUME_SECTIONS_DATABASE_TITLE = '새 데이터베이스';
-const LEGACY_RESUME_SECTIONS_DATABASE_TITLE = 'Resume Sections';
+const RESUME_SECTIONS_DATABASE_TITLE = 'Resume Sections';
+const LEGACY_RESUME_SECTIONS_DATABASE_TITLE = '새 데이터베이스';
 const SECTION_TYPES = [
   'header',
   'summary',
@@ -368,24 +368,34 @@ function parseSectionTitle(value: string): {
   };
 }
 
+function isUnsupportedKindSelectError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  return error.message.includes('not found for property "Kind"');
+}
+
 async function queryEntities(kind: EntityKind): Promise<NotionPage[]> {
   const { databaseId } = await requireServerNotionConfig();
   const pages: NotionPage[] = [];
   let cursor: string | null = null;
 
-  do {
-    const response: NotionQueryResponse =
-      await notionFetch<NotionQueryResponse>(`databases/${databaseId}/query`, {
-        method: 'POST',
-        body: JSON.stringify({
-          filter: { property: 'Kind', select: { equals: kind } },
-          start_cursor: cursor ?? undefined,
-          page_size: 100,
-        }),
-      });
-    pages.push(...response.results);
-    cursor = response.has_more ? response.next_cursor : null;
-  } while (cursor);
+  try {
+    do {
+      const response: NotionQueryResponse =
+        await notionFetch<NotionQueryResponse>(`databases/${databaseId}/query`, {
+          method: 'POST',
+          body: JSON.stringify({
+            filter: { property: 'Kind', select: { equals: kind } },
+            start_cursor: cursor ?? undefined,
+            page_size: 100,
+          }),
+        });
+      pages.push(...response.results);
+      cursor = response.has_more ? response.next_cursor : null;
+    } while (cursor);
+  } catch (error) {
+    if (isUnsupportedKindSelectError(error)) return [];
+    throw error;
+  }
 
   return pages;
 }
@@ -415,22 +425,28 @@ async function findEntity(
   id: string
 ): Promise<NotionPage | null> {
   const { databaseId } = await requireServerNotionConfig();
-  const response: NotionQueryResponse = await notionFetch<NotionQueryResponse>(
-    `databases/${databaseId}/query`,
-    {
-      method: 'POST',
-      body: JSON.stringify({
-        filter: {
-          and: [
-            { property: 'Kind', select: { equals: kind } },
-            { property: 'EntityId', rich_text: { equals: id } },
-          ],
-        },
-        page_size: 1,
-      }),
-    }
-  );
-  return response.results[0] ?? null;
+
+  try {
+    const response: NotionQueryResponse = await notionFetch<NotionQueryResponse>(
+      `databases/${databaseId}/query`,
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          filter: {
+            and: [
+              { property: 'Kind', select: { equals: kind } },
+              { property: 'EntityId', rich_text: { equals: id } },
+            ],
+          },
+          page_size: 1,
+        }),
+      }
+    );
+    return response.results[0] ?? null;
+  } catch (error) {
+    if (isUnsupportedKindSelectError(error)) return null;
+    throw error;
+  }
 }
 
 async function createEntity(input: NotionEntityInput): Promise<NotionPage> {
@@ -478,12 +494,11 @@ async function findResumeSectionsDatabase(
   const childDatabaseBlocks = blocks.filter(
     (block) => block.type === 'child_database'
   );
-  const databaseBlock =
-    childDatabaseBlocks.find(
-      (block) =>
-        block.child_database?.title === RESUME_SECTIONS_DATABASE_TITLE ||
-        block.child_database?.title === LEGACY_RESUME_SECTIONS_DATABASE_TITLE
-    ) ?? childDatabaseBlocks[0];
+  const databaseBlock = childDatabaseBlocks.find(
+    (block) =>
+      block.child_database?.title === RESUME_SECTIONS_DATABASE_TITLE ||
+      block.child_database?.title === LEGACY_RESUME_SECTIONS_DATABASE_TITLE
+  );
 
   if (!databaseBlock) return null;
 
@@ -836,6 +851,39 @@ async function findSectionPageTarget(
   };
 }
 
+function legacySectionUpdateProperties(
+  input: NotionSectionInput,
+  titlePropertyName: string
+) {
+  return {
+    [titlePropertyName]: { title: titleText(sectionTitle(input)) },
+    ResumeId: { rich_text: richText(input.resumeId) },
+    SectionType: { select: { name: input.sectionType } },
+    Layout: { rich_text: richText(input.layout) },
+    Order: { number: input.orderIndex },
+    UpdatedAt: {
+      date: { start: input.updatedAt ?? new Date().toISOString() },
+    },
+  };
+}
+
+async function updateLegacySectionPage(
+  pageId: string,
+  titlePropertyName: string,
+  input: NotionSectionInput
+): Promise<void> {
+  await notionFetch(`pages/${pageId}`, {
+    method: 'PATCH',
+    body: JSON.stringify({
+      properties: legacySectionUpdateProperties(input, titlePropertyName),
+    }),
+  });
+
+  if (input.content !== undefined) {
+    await replacePageContent(pageId, input.content);
+  }
+}
+
 async function updateSectionPageTarget(
   target: SectionPageTarget,
   input: NotionSectionInput
@@ -845,17 +893,11 @@ async function updateSectionPageTarget(
     return;
   }
 
-  await updateEntity(target.page.id, {
-    kind: 'section',
-    id: input.id,
-    title: titleFromPage(target.page, target.titlePropertyName),
-    resumeId: input.resumeId,
-    sectionType: input.sectionType,
-    layout: input.layout,
-    orderIndex: input.orderIndex,
-    updatedAt: input.updatedAt,
-    content: input.content,
-  });
+  await updateLegacySectionPage(
+    target.page.id,
+    target.titlePropertyName,
+    input
+  );
 }
 
 async function getSectionInputBase(

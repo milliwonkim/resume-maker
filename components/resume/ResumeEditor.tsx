@@ -476,8 +476,12 @@ export const ResumeEditor = forwardRef<ResumeEditorRef, Props>(
             }),
           });
           if (!res.ok) {
+            const payload = (await res.json().catch(() => null)) as {
+              error?: string;
+            } | null;
             setSectionAddError(
-              '섹션을 추가하지 못했습니다. 다시 시도해주세요.'
+              payload?.error ??
+                '섹션을 추가하지 못했습니다. 다시 시도해주세요.'
             );
             return;
           }
