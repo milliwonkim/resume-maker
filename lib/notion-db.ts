@@ -16,6 +16,18 @@ import type {
 
 const NOTION_VERSION = '2022-06-28';
 const JSON_CHUNK_SIZE = 1800;
+const RESUME_PAGE_CONTENT_KIND = 'resume-content';
+const RESUME_SECTIONS_DATABASE_TITLE = '새 데이터베이스';
+const LEGACY_RESUME_SECTIONS_DATABASE_TITLE = 'Resume Sections';
+const SECTION_TYPES = [
+  'header',
+  'summary',
+  'text',
+  'experience',
+  'education',
+  'skills',
+  'projects',
+] as const satisfies readonly SectionType[];
 
 type EntityKind = 'resume' | 'section' | 'note' | 'link';
 
@@ -45,6 +57,9 @@ interface NotionQueryResponse {
 interface NotionBlock {
   id: string;
   type: string;
+  child_database?: {
+    title: string;
+  };
   code?: {
     rich_text?: Array<{ plain_text: string }>;
   };
@@ -70,6 +85,39 @@ interface NotionEntityInput {
   orderIndex?: number;
   updatedAt?: string;
   content?: unknown;
+}
+
+interface NotionSectionInput {
+  id: string;
+  resumeId: string;
+  sectionType: SectionType;
+  layout: string;
+  orderIndex: number;
+  updatedAt?: string;
+  content?: unknown;
+}
+
+interface SectionPageTarget {
+  page: NotionPage;
+  storage: 'nested' | 'legacy';
+  titlePropertyName: string;
+}
+
+interface StoredResumeSection {
+  id: string;
+  resume_id: string;
+  type: SectionType;
+  layout: string;
+  content: unknown;
+  order_index: number;
+  created_at: string;
+  updated_at: string;
+}
+
+interface ResumePageContent {
+  kind: typeof RESUME_PAGE_CONTENT_KIND;
+  version: 1;
+  sections: StoredResumeSection[];
 }
 
 function notionHeaders(token: string): HeadersInit {
@@ -104,8 +152,7 @@ async function notionFetch<T>(
   return (await response.json()) as T;
 }
 
-async function getDatabaseInfo(): Promise<DatabaseInfo> {
-  const { databaseId } = await requireServerNotionConfig();
+async function getDatabaseInfoById(databaseId: string): Promise<DatabaseInfo> {
   const database = await notionFetch<{
     properties: Record<string, { type: string }>;
   }>(`databases/${databaseId}`);
@@ -118,6 +165,11 @@ async function getDatabaseInfo(): Promise<DatabaseInfo> {
   }
 
   return { titlePropertyName };
+}
+
+async function getDatabaseInfo(): Promise<DatabaseInfo> {
+  const { databaseId } = await requireServerNotionConfig();
+  return getDatabaseInfoById(databaseId);
 }
 
 function richText(value: string) {
@@ -171,6 +223,82 @@ function numberValue(page: NotionPage, propertyName: string): number {
   return page.properties[propertyName]?.number ?? 0;
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function readRecordString(value: Record<string, unknown>, key: string): string {
+  const candidate = value[key];
+  return typeof candidate === 'string' ? candidate : '';
+}
+
+function readRecordNumber(value: Record<string, unknown>, key: string): number {
+  const candidate = value[key];
+  return typeof candidate === 'number' ? candidate : 0;
+}
+
+function isSectionType(value: unknown): value is SectionType {
+  return (
+    typeof value === 'string' &&
+    SECTION_TYPES.includes(value as (typeof SECTION_TYPES)[number])
+  );
+}
+
+function emptyResumePageContent(): ResumePageContent {
+  return {
+    kind: RESUME_PAGE_CONTENT_KIND,
+    version: 1,
+    sections: [],
+  };
+}
+
+function normalizeStoredSection(value: unknown): StoredResumeSection | null {
+  if (!isRecord(value) || !isSectionType(value.type)) return null;
+
+  const now = new Date().toISOString();
+  const type = value.type;
+  const content = normalizeSectionContent(type, value.content);
+
+  return {
+    id: readRecordString(value, 'id') || crypto.randomUUID(),
+    resume_id: readRecordString(value, 'resume_id'),
+    type,
+    layout: readRecordString(value, 'layout') || 'layout1',
+    content: compactSectionContent(type, content),
+    order_index: readRecordNumber(value, 'order_index'),
+    created_at: readRecordString(value, 'created_at') || now,
+    updated_at: readRecordString(value, 'updated_at') || now,
+  };
+}
+
+function normalizeResumePageContent(value: unknown): ResumePageContent {
+  if (!isRecord(value) || !Array.isArray(value.sections)) {
+    return emptyResumePageContent();
+  }
+
+  return {
+    kind: RESUME_PAGE_CONTENT_KIND,
+    version: 1,
+    sections: value.sections
+      .map(normalizeStoredSection)
+      .filter((section): section is StoredResumeSection => section !== null),
+  };
+}
+
+function toResumeSection(section: StoredResumeSection): ResumeSection {
+  return {
+    ...section,
+    content: normalizeSectionContent(section.type, section.content),
+  };
+}
+
+async function readResumePageContent(
+  pageId: string
+): Promise<ResumePageContent> {
+  const content = await readJsonContent<unknown>(pageId, null);
+  return normalizeResumePageContent(content);
+}
+
 function entityProperties(input: NotionEntityInput, titlePropertyName: string) {
   return {
     [titlePropertyName]: { title: titleText(input.title) },
@@ -182,8 +310,61 @@ function entityProperties(input: NotionEntityInput, titlePropertyName: string) {
       : { select: null },
     Layout: { rich_text: richText(input.layout ?? '') },
     Order:
-      input.orderIndex === undefined ? { number: null } : { number: input.orderIndex },
+      input.orderIndex === undefined
+        ? { number: null }
+        : { number: input.orderIndex },
     UpdatedAt: { date: { start: input.updatedAt ?? new Date().toISOString() } },
+  };
+}
+
+function sectionTitle(input: NotionSectionInput): string {
+  return `${input.sectionType} ${input.orderIndex + 1}`;
+}
+
+function sectionProperties(
+  input: NotionSectionInput,
+  titlePropertyName: string
+) {
+  return {
+    [titlePropertyName]: { title: titleText(sectionTitle(input)) },
+  };
+}
+
+function sectionRecordContent(
+  input: NotionSectionInput,
+  existing?: StoredResumeSection | null
+): StoredResumeSection {
+  const now = input.updatedAt ?? new Date().toISOString();
+  return {
+    id: input.id,
+    resume_id: input.resumeId,
+    type: input.sectionType,
+    layout: input.layout,
+    content:
+      input.content === undefined
+        ? (existing?.content ??
+          compactSectionContent(
+            input.sectionType,
+            normalizeSectionContent(input.sectionType, {})
+          ))
+        : input.content,
+    order_index: input.orderIndex,
+    created_at: existing?.created_at ?? now,
+    updated_at: now,
+  };
+}
+
+function parseSectionTitle(value: string): {
+  sectionType: SectionType;
+  orderIndex: number;
+} | null {
+  const [type, order] = value.trim().split(/\s+/);
+  if (!isSectionType(type)) return null;
+
+  const orderNumber = Number(order);
+  return {
+    sectionType: type,
+    orderIndex: Number.isFinite(orderNumber) ? Math.max(orderNumber - 1, 0) : 0,
   };
 }
 
@@ -193,17 +374,15 @@ async function queryEntities(kind: EntityKind): Promise<NotionPage[]> {
   let cursor: string | null = null;
 
   do {
-    const response: NotionQueryResponse = await notionFetch<NotionQueryResponse>(
-      `databases/${databaseId}/query`,
-      {
+    const response: NotionQueryResponse =
+      await notionFetch<NotionQueryResponse>(`databases/${databaseId}/query`, {
         method: 'POST',
         body: JSON.stringify({
           filter: { property: 'Kind', select: { equals: kind } },
           start_cursor: cursor ?? undefined,
           page_size: 100,
         }),
-      }
-    );
+      });
     pages.push(...response.results);
     cursor = response.has_more ? response.next_cursor : null;
   } while (cursor);
@@ -211,7 +390,30 @@ async function queryEntities(kind: EntityKind): Promise<NotionPage[]> {
   return pages;
 }
 
-async function findEntity(kind: EntityKind, id: string): Promise<NotionPage | null> {
+async function queryDatabasePages(databaseId: string): Promise<NotionPage[]> {
+  const pages: NotionPage[] = [];
+  let cursor: string | null = null;
+
+  do {
+    const response: NotionQueryResponse =
+      await notionFetch<NotionQueryResponse>(`databases/${databaseId}/query`, {
+        method: 'POST',
+        body: JSON.stringify({
+          start_cursor: cursor ?? undefined,
+          page_size: 100,
+        }),
+      });
+    pages.push(...response.results);
+    cursor = response.has_more ? response.next_cursor : null;
+  } while (cursor);
+
+  return pages;
+}
+
+async function findEntity(
+  kind: EntityKind,
+  id: string
+): Promise<NotionPage | null> {
   const { databaseId } = await requireServerNotionConfig();
   const response: NotionQueryResponse = await notionFetch<NotionQueryResponse>(
     `databases/${databaseId}/query`,
@@ -245,6 +447,94 @@ async function createEntity(input: NotionEntityInput): Promise<NotionPage> {
   });
 }
 
+async function createResumeSectionsDatabase(
+  resumePageId: string
+): Promise<DatabaseInfo & { databaseId: string }> {
+  const database = await notionFetch<{
+    id: string;
+    properties: Record<string, { type: string }>;
+  }>('databases', {
+    method: 'POST',
+    body: JSON.stringify({
+      parent: { type: 'page_id', page_id: resumePageId },
+      title: richText(RESUME_SECTIONS_DATABASE_TITLE),
+      properties: {
+        이름: { title: {} },
+      },
+    }),
+  });
+  const titlePropertyName =
+    Object.entries(database.properties).find(
+      ([, property]) => property.type === 'title'
+    )?.[0] ?? 'Name';
+
+  return { databaseId: database.id, titlePropertyName };
+}
+
+async function findResumeSectionsDatabase(
+  resumePageId: string
+): Promise<(DatabaseInfo & { databaseId: string }) | null> {
+  const blocks = await getPageBlocks(resumePageId);
+  const childDatabaseBlocks = blocks.filter(
+    (block) => block.type === 'child_database'
+  );
+  const databaseBlock =
+    childDatabaseBlocks.find(
+      (block) =>
+        block.child_database?.title === RESUME_SECTIONS_DATABASE_TITLE ||
+        block.child_database?.title === LEGACY_RESUME_SECTIONS_DATABASE_TITLE
+    ) ?? childDatabaseBlocks[0];
+
+  if (!databaseBlock) return null;
+
+  return {
+    databaseId: databaseBlock.id,
+    ...(await getDatabaseInfoById(databaseBlock.id)),
+  };
+}
+
+async function ensureResumeSectionsDatabase(
+  resumePageId: string
+): Promise<DatabaseInfo & { databaseId: string }> {
+  return (
+    (await findResumeSectionsDatabase(resumePageId)) ??
+    createResumeSectionsDatabase(resumePageId)
+  );
+}
+
+async function createSectionPage(
+  databaseId: string,
+  titlePropertyName: string,
+  input: NotionSectionInput
+): Promise<NotionPage> {
+  return notionFetch<NotionPage>('pages', {
+    method: 'POST',
+    body: JSON.stringify({
+      parent: { database_id: databaseId },
+      properties: sectionProperties(input, titlePropertyName),
+      children: jsonBlocks(sectionRecordContent(input)),
+    }),
+  });
+}
+
+async function updateSectionPage(
+  pageId: string,
+  titlePropertyName: string,
+  input: NotionSectionInput
+): Promise<void> {
+  const existing = normalizeStoredSection(
+    await readJsonContent<unknown>(pageId, null)
+  );
+  await notionFetch(`pages/${pageId}`, {
+    method: 'PATCH',
+    body: JSON.stringify({
+      properties: sectionProperties(input, titlePropertyName),
+    }),
+  });
+
+  await replacePageContent(pageId, sectionRecordContent(input, existing));
+}
+
 async function updateEntity(
   pageId: string,
   input: NotionEntityInput
@@ -276,10 +566,10 @@ async function getPageBlocks(pageId: string): Promise<NotionBlock[]> {
   do {
     const response: NotionBlocksResponse =
       await notionFetch<NotionBlocksResponse>(
-      `blocks/${pageId}/children?page_size=100${
-        cursor ? `&start_cursor=${cursor}` : ''
-      }`
-    );
+        `blocks/${pageId}/children?page_size=100${
+          cursor ? `&start_cursor=${cursor}` : ''
+        }`
+      );
     blocks.push(...response.results);
     cursor = response.has_more ? response.next_cursor : null;
   } while (cursor);
@@ -301,11 +591,19 @@ async function readJsonContent<T>(pageId: string, fallback: T): Promise<T> {
   try {
     return JSON.parse(json) as T;
   } catch {
-    return fallback;
+    try {
+      const unescapedJson = JSON.parse(`"${json}"`) as string;
+      return JSON.parse(unescapedJson) as T;
+    } catch {
+      return fallback;
+    }
   }
 }
 
-async function replacePageContent(pageId: string, content: unknown): Promise<void> {
+async function replacePageContent(
+  pageId: string,
+  content: unknown
+): Promise<void> {
   const blocks = await getPageBlocks(pageId);
   await Promise.all(
     blocks.map((block) =>
@@ -323,6 +621,20 @@ async function replacePageContent(pageId: string, content: unknown): Promise<voi
     method: 'PATCH',
     body: JSON.stringify({ children }),
   });
+}
+
+async function archivePageJsonContent(pageId: string): Promise<void> {
+  const blocks = await getPageBlocks(pageId);
+  await Promise.all(
+    blocks
+      .filter((block) => block.type === 'code')
+      .map((block) =>
+        notionFetch(`blocks/${block.id}`, {
+          method: 'PATCH',
+          body: JSON.stringify({ archived: true }),
+        })
+      )
+  );
 }
 
 function normalizeResumePage(
@@ -374,6 +686,212 @@ async function normalizeNotePage(
   };
 }
 
+async function getLegacySectionsByResumeId(
+  resumeId: string,
+  resumePage: NotionPage | null
+): Promise<ResumeSection[]> {
+  if (resumePage) {
+    const content = await readResumePageContent(resumePage.id);
+    if (content.sections.length > 0) {
+      return content.sections
+        .map((section) => toResumeSection({ ...section, resume_id: resumeId }))
+        .sort((a, b) => a.order_index - b.order_index);
+    }
+  }
+
+  const pages = (await queryEntities('section')).filter(
+    (page) => richTextValue(page, 'ResumeId') === resumeId
+  );
+  const sections = await Promise.all(pages.map(normalizeSectionPage));
+  return sections.sort((a, b) => a.order_index - b.order_index);
+}
+
+async function normalizeNestedSectionPage(
+  page: NotionPage,
+  resumeId: string,
+  titlePropertyName: string
+): Promise<ResumeSection | null> {
+  const content = await readJsonContent<unknown>(page.id, null);
+  const storedSection = normalizeStoredSection(content);
+  if (storedSection) {
+    return toResumeSection({
+      ...storedSection,
+      resume_id: storedSection.resume_id || resumeId,
+    });
+  }
+
+  const parsed = parseSectionTitle(titleFromPage(page, titlePropertyName));
+  if (!parsed) return null;
+
+  const now = new Date().toISOString();
+  return {
+    id: page.id,
+    resume_id: resumeId,
+    type: parsed.sectionType,
+    layout: 'layout1',
+    content: normalizeSectionContent(parsed.sectionType, {}),
+    order_index: parsed.orderIndex,
+    created_at: page.created_time || now,
+    updated_at: page.last_edited_time || now,
+  };
+}
+
+async function getNestedSectionsByResumePage(
+  resumePageId: string,
+  resumeId: string
+): Promise<ResumeSection[] | null> {
+  const database = await findResumeSectionsDatabase(resumePageId);
+  if (!database) return null;
+
+  const pages = await queryDatabasePages(database.databaseId);
+  const sections = await Promise.all(
+    pages.map((page) =>
+      normalizeNestedSectionPage(page, resumeId, database.titlePropertyName)
+    )
+  );
+  return sections
+    .filter((section): section is ResumeSection => section !== null)
+    .sort((a, b) => a.order_index - b.order_index);
+}
+
+async function migrateLegacySectionsToNestedDatabase(
+  resumeId: string,
+  resumePage: NotionPage,
+  database: DatabaseInfo & { databaseId: string }
+): Promise<void> {
+  const existingPages = await queryDatabasePages(database.databaseId);
+  if (existingPages.length > 0) return;
+
+  const legacySections = await getLegacySectionsByResumeId(
+    resumeId,
+    resumePage
+  );
+  await Promise.all(
+    legacySections.map((section) =>
+      createSectionPage(database.databaseId, database.titlePropertyName, {
+        id: section.id,
+        resumeId,
+        sectionType: section.type,
+        layout: section.layout,
+        orderIndex: section.order_index,
+        updatedAt: section.updated_at,
+        content: compactSectionContent(section.type, section.content),
+      })
+    )
+  );
+  await archivePageJsonContent(resumePage.id);
+
+  const legacyPages = (await queryEntities('section')).filter(
+    (sectionPage) => richTextValue(sectionPage, 'ResumeId') === resumeId
+  );
+  await Promise.all(
+    legacyPages.map((sectionPage) => archiveEntity(sectionPage.id))
+  );
+}
+
+async function findSectionPageTarget(
+  resumeId: string,
+  sectionId: string
+): Promise<SectionPageTarget | null> {
+  const resumePage = await findEntity('resume', resumeId);
+  if (resumePage) {
+    const database = await findResumeSectionsDatabase(resumePage.id);
+    if (database) {
+      const pages = await queryDatabasePages(database.databaseId);
+      let page = pages.find(
+        (candidate) =>
+          candidate.id === sectionId ||
+          richTextValue(candidate, 'EntityId') === sectionId
+      );
+
+      if (!page) {
+        for (const candidate of pages) {
+          const storedSection = normalizeStoredSection(
+            await readJsonContent<unknown>(candidate.id, null)
+          );
+          if (storedSection?.id === sectionId) {
+            page = candidate;
+            break;
+          }
+        }
+      }
+
+      if (page) {
+        return {
+          page,
+          storage: 'nested',
+          titlePropertyName: database.titlePropertyName,
+        };
+      }
+    }
+  }
+
+  const legacyPage = await findEntity('section', sectionId);
+  if (!legacyPage) return null;
+
+  return {
+    page: legacyPage,
+    storage: 'legacy',
+    titlePropertyName: (await getDatabaseInfo()).titlePropertyName,
+  };
+}
+
+async function updateSectionPageTarget(
+  target: SectionPageTarget,
+  input: NotionSectionInput
+): Promise<void> {
+  if (target.storage === 'nested') {
+    await updateSectionPage(target.page.id, target.titlePropertyName, input);
+    return;
+  }
+
+  await updateEntity(target.page.id, {
+    kind: 'section',
+    id: input.id,
+    title: titleFromPage(target.page, target.titlePropertyName),
+    resumeId: input.resumeId,
+    sectionType: input.sectionType,
+    layout: input.layout,
+    orderIndex: input.orderIndex,
+    updatedAt: input.updatedAt,
+    content: input.content,
+  });
+}
+
+async function getSectionInputBase(
+  target: SectionPageTarget,
+  resumeId: string,
+  sectionId: string
+): Promise<NotionSectionInput> {
+  if (target.storage === 'nested') {
+    const storedSection = normalizeStoredSection(
+      await readJsonContent<unknown>(target.page.id, null)
+    );
+    const parsedTitle = parseSectionTitle(
+      titleFromPage(target.page, target.titlePropertyName)
+    );
+    const sectionType = storedSection?.type ?? parsedTitle?.sectionType;
+    if (!sectionType) throw new Error('섹션 타입을 찾을 수 없습니다.');
+
+    return {
+      id: storedSection?.id ?? sectionId,
+      resumeId: storedSection?.resume_id || resumeId,
+      sectionType,
+      layout: storedSection?.layout ?? 'layout1',
+      orderIndex: storedSection?.order_index ?? parsedTitle?.orderIndex ?? 0,
+      content: storedSection?.content,
+    };
+  }
+
+  return {
+    id: sectionId,
+    resumeId,
+    sectionType: selectValue(target.page, 'SectionType') as SectionType,
+    layout: richTextValue(target.page, 'Layout') || 'layout1',
+    orderIndex: numberValue(target.page, 'Order'),
+  };
+}
+
 export async function getResumes(auth: AuthenticatedUser): Promise<Resume[]> {
   void auth;
   const { titlePropertyName } = await getDatabaseInfo();
@@ -394,6 +912,7 @@ export async function createResume(
     title,
     updatedAt: now,
   });
+  await ensureResumeSectionsDatabase(page.id);
   const { titlePropertyName } = await getDatabaseInfo();
   return normalizeResumePage(page, titlePropertyName);
 }
@@ -418,26 +937,45 @@ export async function deleteResume(
   id: string
 ): Promise<void> {
   const page = await findEntity('resume', id);
-  if (page) await archiveEntity(page.id);
+  if (page) {
+    const database = await findResumeSectionsDatabase(page.id);
+    if (database) {
+      const sectionPages = await queryDatabasePages(database.databaseId);
+      await Promise.all(
+        sectionPages.map((section) => archiveEntity(section.id))
+      );
+    }
+    await archiveEntity(page.id);
+  }
 
-  const sections = await getSections(_auth, id);
-  await Promise.all(
-    sections.map(async (section) => {
-      const sectionPage = await findEntity('section', section.id);
-      if (sectionPage) await archiveEntity(sectionPage.id);
-    })
+  const legacyPages = (await queryEntities('section')).filter(
+    (sectionPage) => richTextValue(sectionPage, 'ResumeId') === id
   );
+  await Promise.all(
+    legacyPages.map((sectionPage) => archiveEntity(sectionPage.id))
+  );
+}
+
+async function getSectionsByResumeId(
+  resumeId: string
+): Promise<ResumeSection[]> {
+  const resumePage = await findEntity('resume', resumeId);
+  if (resumePage) {
+    const nestedSections = await getNestedSectionsByResumePage(
+      resumePage.id,
+      resumeId
+    );
+    if (nestedSections !== null) return nestedSections;
+  }
+
+  return getLegacySectionsByResumeId(resumeId, resumePage);
 }
 
 export async function getSections(
   _auth: AuthenticatedUser,
   resumeId: string
 ): Promise<ResumeSection[]> {
-  const pages = (await queryEntities('section')).filter(
-    (page) => richTextValue(page, 'ResumeId') === resumeId
-  );
-  const sections = await Promise.all(pages.map(normalizeSectionPage));
-  return sections.sort((a, b) => a.order_index - b.order_index);
+  return getSectionsByResumeId(resumeId);
 }
 
 export async function createSection(
@@ -448,20 +986,33 @@ export async function createSection(
   orderIndex: number,
   layout = 'layout1'
 ): Promise<ResumeSection> {
+  const resumePage = await findEntity('resume', resumeId);
+  if (!resumePage) throw new Error('이력서를 찾을 수 없습니다.');
+  const database = await ensureResumeSectionsDatabase(resumePage.id);
+  await migrateLegacySectionsToNestedDatabase(resumeId, resumePage, database);
+
   const now = new Date().toISOString();
-  const id = crypto.randomUUID();
-  const page = await createEntity({
-    kind: 'section',
-    id,
-    title: `${type} ${orderIndex + 1}`,
-    resumeId,
-    sectionType: type,
+  const section: ResumeSection = {
+    id: crypto.randomUUID(),
+    resume_id: resumeId,
+    type,
     layout,
-    orderIndex,
+    content: normalizeSectionContent(type, content),
+    order_index: orderIndex,
+    created_at: now,
+    updated_at: now,
+  };
+  await createSectionPage(database.databaseId, database.titlePropertyName, {
+    id: section.id,
+    resumeId,
+    sectionType: section.type,
+    layout: section.layout,
+    orderIndex: section.order_index,
     updatedAt: now,
-    content: compactSectionContent(type, content),
+    content: compactSectionContent(section.type, section.content),
   });
-  return normalizeSectionPage(page);
+
+  return section;
 }
 
 export async function updateSectionLayout(
@@ -470,16 +1021,15 @@ export async function updateSectionLayout(
   id: string,
   layout: string
 ): Promise<void> {
-  const page = await findEntity('section', id);
-  if (!page) throw new Error('섹션을 찾을 수 없습니다.');
-  await updateEntity(page.id, {
-    kind: 'section',
-    id,
-    title: titleFromPage(page, (await getDatabaseInfo()).titlePropertyName),
-    resumeId,
-    sectionType: selectValue(page, 'SectionType') as SectionType,
+  const now = new Date().toISOString();
+  const target = await findSectionPageTarget(resumeId, id);
+  if (!target) throw new Error('섹션을 찾을 수 없습니다.');
+  const base = await getSectionInputBase(target, resumeId, id);
+
+  await updateSectionPageTarget(target, {
+    ...base,
     layout,
-    orderIndex: numberValue(page, 'Order'),
+    updatedAt: now,
   });
 }
 
@@ -489,18 +1039,15 @@ export async function updateSectionContent(
   id: string,
   content: SectionContent
 ): Promise<void> {
-  const page = await findEntity('section', id);
-  if (!page) throw new Error('섹션을 찾을 수 없습니다.');
-  const type = selectValue(page, 'SectionType') as SectionType;
-  await updateEntity(page.id, {
-    kind: 'section',
-    id,
-    title: titleFromPage(page, (await getDatabaseInfo()).titlePropertyName),
-    resumeId,
-    sectionType: type,
-    layout: richTextValue(page, 'Layout') || 'layout1',
-    orderIndex: numberValue(page, 'Order'),
-    content: compactSectionContent(type, content),
+  const now = new Date().toISOString();
+  const target = await findSectionPageTarget(resumeId, id);
+  if (!target) throw new Error('섹션을 찾을 수 없습니다.');
+  const base = await getSectionInputBase(target, resumeId, id);
+
+  await updateSectionPageTarget(target, {
+    ...base,
+    updatedAt: now,
+    content: compactSectionContent(base.sectionType, content),
   });
 }
 
@@ -510,26 +1057,25 @@ export async function updateSectionOrder(
   id: string,
   orderIndex: number
 ): Promise<void> {
-  const page = await findEntity('section', id);
-  if (!page) throw new Error('섹션을 찾을 수 없습니다.');
-  await updateEntity(page.id, {
-    kind: 'section',
-    id,
-    title: titleFromPage(page, (await getDatabaseInfo()).titlePropertyName),
-    resumeId,
-    sectionType: selectValue(page, 'SectionType') as SectionType,
-    layout: richTextValue(page, 'Layout') || 'layout1',
+  const now = new Date().toISOString();
+  const target = await findSectionPageTarget(resumeId, id);
+  if (!target) throw new Error('섹션을 찾을 수 없습니다.');
+  const base = await getSectionInputBase(target, resumeId, id);
+
+  await updateSectionPageTarget(target, {
+    ...base,
     orderIndex,
+    updatedAt: now,
   });
 }
 
 export async function deleteSection(
   _auth: AuthenticatedUser,
-  _resumeId: string,
+  resumeId: string,
   id: string
 ): Promise<void> {
-  const page = await findEntity('section', id);
-  if (page) await archiveEntity(page.id);
+  const target = await findSectionPageTarget(resumeId, id);
+  if (target) await archiveEntity(target.page.id);
 }
 
 export async function getNotes(auth: AuthenticatedUser): Promise<Note[]> {
@@ -635,18 +1181,41 @@ export async function replaceResumeWithSectionsByTitle(
   );
   const target = existing ?? (await createResume(auth, resume.title));
   await updateResumeTitle(auth, target.id, resume.title);
-  const oldSections = await getSections(auth, target.id);
+  const page = await findEntity('resume', target.id);
+  if (!page) throw new Error('이력서를 찾을 수 없습니다.');
+
+  const now = new Date().toISOString();
+  const database = await ensureResumeSectionsDatabase(page.id);
+  const existingPages = await queryDatabasePages(database.databaseId);
   await Promise.all(
-    oldSections.map((section) => deleteSection(auth, target.id, section.id))
+    existingPages.map((sectionPage) => archiveEntity(sectionPage.id))
   );
-  for (const [index, section] of sections.entries()) {
-    await createSection(
-      auth,
-      target.id,
-      section.type,
-      section.content,
-      index,
-      section.layout
-    );
-  }
+  await archivePageJsonContent(page.id);
+
+  const legacyPages = (await queryEntities('section')).filter(
+    (sectionPage) => richTextValue(sectionPage, 'ResumeId') === target.id
+  );
+  await Promise.all(
+    legacyPages.map((sectionPage) => archiveEntity(sectionPage.id))
+  );
+
+  const nextSections = sections.map((section, index) => ({
+    ...section,
+    resume_id: target.id,
+    order_index: index,
+    updated_at: now,
+  }));
+  await Promise.all(
+    nextSections.map((section) =>
+      createSectionPage(database.databaseId, database.titlePropertyName, {
+        id: section.id,
+        resumeId: target.id,
+        sectionType: section.type,
+        layout: section.layout,
+        orderIndex: section.order_index,
+        updatedAt: now,
+        content: compactSectionContent(section.type, section.content),
+      })
+    )
+  );
 }

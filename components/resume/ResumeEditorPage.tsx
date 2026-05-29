@@ -15,7 +15,7 @@ import { NotesNavbarButton } from '@/components/notes/NotesNavbarButton';
 import { ResumeEditor, type ResumeEditorRef } from './ResumeEditor';
 import { SettingsDialog } from '@/components/settings/SettingsDialog';
 import { AIPanel } from '@/components/ai/AIPanel';
-import type { Resume, ResumeSection } from '@/lib/types';
+import type { Resume } from '@/lib/types';
 
 interface Props {
   resumeId: string;
