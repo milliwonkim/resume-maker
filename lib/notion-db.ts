@@ -751,13 +751,10 @@ async function normalizeNestedSectionPage(
   };
 }
 
-async function getNestedSectionsByResumePage(
-  resumePageId: string,
-  resumeId: string
-): Promise<ResumeSection[] | null> {
-  const database = await findResumeSectionsDatabase(resumePageId);
-  if (!database) return null;
-
+async function loadNestedSections(
+  resumeId: string,
+  database: DatabaseInfo & { databaseId: string }
+): Promise<ResumeSection[]> {
   const pages = await queryDatabasePages(database.databaseId);
   const sections = await Promise.all(
     pages.map((page) =>
@@ -767,6 +764,29 @@ async function getNestedSectionsByResumePage(
   return sections
     .filter((section): section is ResumeSection => section !== null)
     .sort((a, b) => a.order_index - b.order_index);
+}
+
+async function ensureSectionStorage(
+  resumeId: string
+): Promise<{
+  resumePage: NotionPage;
+  database: DatabaseInfo & { databaseId: string };
+}> {
+  const resumePage = await findEntity('resume', resumeId);
+  if (!resumePage) throw new Error('이력서를 찾을 수 없습니다.');
+  const database = await ensureResumeSectionsDatabase(resumePage.id);
+  await migrateLegacySectionsToNestedDatabase(resumeId, resumePage, database);
+  return { resumePage, database };
+}
+
+async function resolveSectionPageTarget(
+  resumeId: string,
+  sectionId: string
+): Promise<SectionPageTarget> {
+  await ensureSectionStorage(resumeId);
+  const target = await findSectionPageTarget(resumeId, sectionId);
+  if (!target) throw new Error('섹션을 찾을 수 없습니다.');
+  return target;
 }
 
 async function migrateLegacySectionsToNestedDatabase(
@@ -1002,12 +1022,16 @@ async function getSectionsByResumeId(
   resumeId: string
 ): Promise<ResumeSection[]> {
   const resumePage = await findEntity('resume', resumeId);
-  if (resumePage) {
-    const nestedSections = await getNestedSectionsByResumePage(
-      resumePage.id,
-      resumeId
-    );
-    if (nestedSections !== null) return nestedSections;
+  if (!resumePage) return [];
+
+  const database = await findResumeSectionsDatabase(resumePage.id);
+  if (database) {
+    let nestedSections = await loadNestedSections(resumeId, database);
+    if (nestedSections.length === 0) {
+      await migrateLegacySectionsToNestedDatabase(resumeId, resumePage, database);
+      nestedSections = await loadNestedSections(resumeId, database);
+    }
+    if (nestedSections.length > 0) return nestedSections;
   }
 
   return getLegacySectionsByResumeId(resumeId, resumePage);
@@ -1028,10 +1052,7 @@ export async function createSection(
   orderIndex: number,
   layout = 'layout1'
 ): Promise<ResumeSection> {
-  const resumePage = await findEntity('resume', resumeId);
-  if (!resumePage) throw new Error('이력서를 찾을 수 없습니다.');
-  const database = await ensureResumeSectionsDatabase(resumePage.id);
-  await migrateLegacySectionsToNestedDatabase(resumeId, resumePage, database);
+  const { database } = await ensureSectionStorage(resumeId);
 
   const now = new Date().toISOString();
   const section: ResumeSection = {
@@ -1064,8 +1085,7 @@ export async function updateSectionLayout(
   layout: string
 ): Promise<void> {
   const now = new Date().toISOString();
-  const target = await findSectionPageTarget(resumeId, id);
-  if (!target) throw new Error('섹션을 찾을 수 없습니다.');
+  const target = await resolveSectionPageTarget(resumeId, id);
   const base = await getSectionInputBase(target, resumeId, id);
 
   await updateSectionPageTarget(target, {
@@ -1082,8 +1102,7 @@ export async function updateSectionContent(
   content: SectionContent
 ): Promise<void> {
   const now = new Date().toISOString();
-  const target = await findSectionPageTarget(resumeId, id);
-  if (!target) throw new Error('섹션을 찾을 수 없습니다.');
+  const target = await resolveSectionPageTarget(resumeId, id);
   const base = await getSectionInputBase(target, resumeId, id);
 
   await updateSectionPageTarget(target, {
@@ -1100,8 +1119,7 @@ export async function updateSectionOrder(
   orderIndex: number
 ): Promise<void> {
   const now = new Date().toISOString();
-  const target = await findSectionPageTarget(resumeId, id);
-  if (!target) throw new Error('섹션을 찾을 수 없습니다.');
+  const target = await resolveSectionPageTarget(resumeId, id);
   const base = await getSectionInputBase(target, resumeId, id);
 
   await updateSectionPageTarget(target, {
@@ -1116,8 +1134,8 @@ export async function deleteSection(
   resumeId: string,
   id: string
 ): Promise<void> {
-  const target = await findSectionPageTarget(resumeId, id);
-  if (target) await archiveEntity(target.page.id);
+  const target = await resolveSectionPageTarget(resumeId, id);
+  await archiveEntity(target.page.id);
 }
 
 export async function getNotes(auth: AuthenticatedUser): Promise<Note[]> {

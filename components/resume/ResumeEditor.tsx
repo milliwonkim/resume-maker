@@ -30,6 +30,13 @@ export interface ResumeEditorRef {
 const SAVE_DEBOUNCE_MS = 800;
 const TEMP_SECTION_ID_PREFIX = 'temp-section-';
 
+async function readApiError(response: Response, fallback: string): Promise<string> {
+  const payload = (await response.json().catch(() => null)) as {
+    error?: string;
+  } | null;
+  return payload?.error ?? fallback;
+}
+
 function isTemporarySectionId(sectionId: string): boolean {
   return sectionId.startsWith(TEMP_SECTION_ID_PREFIX);
 }
@@ -89,6 +96,7 @@ export const ResumeEditor = forwardRef<ResumeEditorRef, Props>(
     const [addingSectionType, setAddingSectionType] =
       useState<SectionType | null>(null);
     const [sectionAddError, setSectionAddError] = useState<string | null>(null);
+    const [sectionSaveError, setSectionSaveError] = useState<string | null>(null);
     const visibleSections = useMemo(
       () => sections.filter((s) => s.id),
       [sections]
@@ -134,11 +142,26 @@ export const ResumeEditor = forwardRef<ResumeEditorRef, Props>(
           try {
             const latestPayload =
               pendingSaves.current.get(sectionId) ?? payload;
-            await fetch(`/api/resumes/${resumeId}/sections/${sectionId}`, {
-              method: 'PATCH',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(latestPayload),
-            });
+            const response = await fetch(
+              `/api/resumes/${resumeId}/sections/${sectionId}`,
+              {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(latestPayload),
+              }
+            );
+            if (!response.ok) {
+              setSectionSaveError(
+                await readApiError(
+                  response,
+                  '섹션 변경사항을 저장하지 못했습니다.'
+                )
+              );
+              return;
+            }
+            setSectionSaveError(null);
+          } catch {
+            setSectionSaveError('섹션 변경사항을 저장하지 못했습니다.');
           } finally {
             pendingSaves.current.delete(sectionId);
             setIsSaving(false);
@@ -215,11 +238,22 @@ export const ResumeEditor = forwardRef<ResumeEditorRef, Props>(
             deletedSectionIds.includes(sectionId)
           )
             continue;
-          await fetch(`/api/resumes/${resumeId}/sections/${sectionId}`, {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload),
-          });
+          const response = await fetch(
+            `/api/resumes/${resumeId}/sections/${sectionId}`,
+            {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(payload),
+            }
+          );
+          if (!response.ok) {
+            throw new Error(
+              await readApiError(
+                response,
+                '섹션 변경사항을 저장하지 못했습니다.'
+              )
+            );
+          }
         }
 
         if (needsOrderSave) await saveOrder();
@@ -235,6 +269,14 @@ export const ResumeEditor = forwardRef<ResumeEditorRef, Props>(
         );
         hasPendingOrder.current = false;
         onPendingChange(false);
+        setSectionSaveError(null);
+      } catch (error) {
+        setSectionSaveError(
+          error instanceof Error
+            ? error.message
+            : '섹션 변경사항을 저장하지 못했습니다.'
+        );
+        throw error;
       } finally {
         setIsSaving(false);
       }
@@ -570,6 +612,11 @@ export const ResumeEditor = forwardRef<ResumeEditorRef, Props>(
           {sectionAddError && (
             <p className="mt-2 text-center text-xs text-red-500">
               {sectionAddError}
+            </p>
+          )}
+          {sectionSaveError && (
+            <p className="mt-2 text-center text-xs text-red-500">
+              {sectionSaveError}
             </p>
           )}
         </div>
