@@ -1,15 +1,18 @@
 'use client';
 
 import { useState, useCallback, useEffect } from 'react';
+
+import { TokenSetupForm } from '@/components/settings/token-setup-form';
 import { useAIStore } from '@/store/ai';
 
-type SettingsTab = 'ai' | 'notion';
+type SettingsTab = 'tokens' | 'ai' | 'notion';
 
 interface Props {
   onClose: () => void;
+  onTokensReady?: () => void;
 }
 
-export function SettingsDialog({ onClose }: Props) {
+export function SettingsDialog({ onClose, onTokensReady }: Props) {
   const {
     rules,
     setRules,
@@ -21,7 +24,7 @@ export function SettingsDialog({ onClose }: Props) {
     setAutoSave,
   } = useAIStore();
 
-  const [tab, setTab] = useState<SettingsTab>('ai');
+  const [tab, setTab] = useState<SettingsTab>('tokens');
 
   // AI tab state
   const [rulesLocal, setRulesLocal] = useState(rules);
@@ -100,7 +103,7 @@ export function SettingsDialog({ onClose }: Props) {
 
   return (
     <div className="no-print fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-      <div className="flex max-h-[85vh] w-full max-w-md flex-col rounded-2xl bg-white shadow-2xl">
+      <div className="flex max-h-[85vh] w-full max-w-xl flex-col rounded-2xl bg-white shadow-2xl">
         {/* Header */}
         <div className="flex shrink-0 items-center justify-between border-b border-gray-100 px-5 py-4">
           <span className="text-base font-semibold text-gray-900">설정</span>
@@ -115,7 +118,7 @@ export function SettingsDialog({ onClose }: Props) {
 
         {/* Tabs */}
         <div className="flex shrink-0 border-b border-gray-100">
-          {(['ai', 'notion'] as SettingsTab[]).map((t) => (
+          {(['tokens', 'ai', 'notion'] as SettingsTab[]).map((t) => (
             <button
               key={t}
               type="button"
@@ -126,10 +129,28 @@ export function SettingsDialog({ onClose }: Props) {
                   : 'text-gray-500 hover:text-gray-700'
               }`}
             >
-              {t === 'ai' ? 'AI 설정' : 'Notion 연동'}
+              {t === 'tokens'
+                ? '토큰 세팅'
+                : t === 'ai'
+                  ? 'AI 설정'
+                  : 'Notion 연동'}
             </button>
           ))}
         </div>
+
+        {tab === 'tokens' && (
+          <div className="flex-1 overflow-y-auto p-5">
+            <TokenSetupForm
+              defaultStep="database"
+              title="이력서 토큰 세팅"
+              description="Notion 데이터베이스와 Gemini 키를 언제든 다시 확인하고 이력서 저장 위치를 바꿀 수 있습니다. 토큰을 바꾸려면 아래의 토큰 다시 설정을 눌러주세요."
+              onReady={() => {
+                onTokensReady?.();
+                onClose();
+              }}
+            />
+          </div>
+        )}
 
         {/* AI tab */}
         {tab === 'ai' && (
