@@ -3,6 +3,7 @@ import type {
   SectionType,
   SectionContent,
   SummaryContent,
+  HeaderContent,
   ExperienceContent,
   EducationContent,
   HighSchoolCategory,
@@ -43,29 +44,29 @@ export function parseJsonArray(text: string): unknown[] {
 }
 
 function isSchoolType(
-  value: unknown,
+  value: unknown
 ): value is EducationContent['items'][number]['schoolType'] {
   return (
     typeof value === 'string' &&
     SCHOOL_TYPES.includes(
-      value as EducationContent['items'][number]['schoolType'],
+      value as EducationContent['items'][number]['schoolType']
     )
   );
 }
 
 function isGpaScale(
-  value: unknown,
+  value: unknown
 ): value is EducationContent['items'][number]['gpaScale'] {
   return (
     typeof value === 'string' &&
     GPA_SCALES.includes(
-      value as NonNullable<EducationContent['items'][number]['gpaScale']>,
+      value as NonNullable<EducationContent['items'][number]['gpaScale']>
     )
   );
 }
 
 function inferSchoolType(
-  item: Record<string, unknown>,
+  item: Record<string, unknown>
 ): EducationContent['items'][number]['schoolType'] {
   if (isSchoolType(item.schoolType)) return item.schoolType;
   const school = toText(item.school);
@@ -75,7 +76,7 @@ function inferSchoolType(
 }
 
 function normalizeAdditionalMajor(
-  value: unknown,
+  value: unknown
 ):
   | NonNullable<EducationContent['items'][number]['additionalMajors']>[number]
   | null {
@@ -91,7 +92,7 @@ function normalizeAdditionalMajor(
 }
 
 function normalizeAdditionalMajors(
-  item: Record<string, unknown>,
+  item: Record<string, unknown>
 ): NonNullable<EducationContent['items'][number]['additionalMajors']> {
   const additionalMajors = Array.isArray(item.additionalMajors)
     ? item.additionalMajors
@@ -101,7 +102,11 @@ function normalizeAdditionalMajors(
 
   const minor = toText(item.minor);
   if (minor) {
-    additionalMajors.push({ id: crypto.randomUUID(), label: '부전공', field: minor });
+    additionalMajors.push({
+      id: crypto.randomUUID(),
+      label: '부전공',
+      field: minor,
+    });
   }
 
   const doubleMajor = toText(item.doubleMajor);
@@ -150,7 +155,7 @@ function normalizeHighSchoolCategory(item: Record<string, unknown>): string {
 }
 
 export function normalizeEducationItem(
-  item: unknown,
+  item: unknown
 ): EducationContent['items'][number] {
   if (!isRecord(item)) {
     return {
@@ -198,7 +203,7 @@ export function normalizeEducationItem(
  */
 export function applyAIResult(
   sectionType: SectionType,
-  text: string,
+  text: string
 ): SectionContent | null {
   if (sectionType === 'summary' || sectionType === 'text') {
     return { text: normalizeRichTextValue(text) } as SummaryContent;
@@ -206,6 +211,22 @@ export function applyAIResult(
 
   try {
     const parsed = parseJsonArray(text);
+
+    if (sectionType === 'header') {
+      const item = parsed.find(isRecord);
+      if (!item) return null;
+
+      return {
+        name: toText(item.name),
+        title: toText(item.title),
+        email: toText(item.email),
+        phone: toText(item.phone),
+        location: toText(item.location),
+        linkedin: toText(item.linkedin),
+        github: toText(item.github),
+        website: toText(item.website),
+      } satisfies HeaderContent;
+    }
 
     if (sectionType === 'experience') {
       return {
@@ -227,17 +248,27 @@ export function applyAIResult(
                   endDate: toText(p.endDate),
                   tech: toText(p.tech),
                   problem: normalizeRichTextValue(toRichTextValue(p.problem)),
-                  ownership: normalizeRichTextValue(toRichTextValue(p.ownership)),
-                  achievement: normalizeRichTextValue(toRichTextValue(p.achievement)),
+                  ownership: normalizeRichTextValue(
+                    toRichTextValue(p.ownership)
+                  ),
+                  achievement: normalizeRichTextValue(
+                    toRichTextValue(p.achievement)
+                  ),
                 }))
               : [
                   {
                     id: crypto.randomUUID(),
                     name: '프로젝트명',
                     tech: toText(item.tech),
-                    problem: normalizeRichTextValue(toRichTextValue(item.problem)),
-                    ownership: normalizeRichTextValue(toRichTextValue(item.ownership)),
-                    achievement: normalizeRichTextValue(toRichTextValue(item.achievement)),
+                    problem: normalizeRichTextValue(
+                      toRichTextValue(item.problem)
+                    ),
+                    ownership: normalizeRichTextValue(
+                      toRichTextValue(item.ownership)
+                    ),
+                    achievement: normalizeRichTextValue(
+                      toRichTextValue(item.achievement)
+                    ),
                   },
                 ],
           };

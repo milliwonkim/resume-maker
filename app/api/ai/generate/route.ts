@@ -6,6 +6,7 @@ import { getServerGeminiApiKey } from '@/lib/server-user-tokens';
 import type { SectionType } from '@/lib/types';
 
 const JSON_SECTIONS: SectionType[] = [
+  'header',
   'experience',
   'education',
   'skills',
@@ -15,7 +16,10 @@ const RICH_TEXT_MARKUP_INSTRUCTION =
   'WYSIWYG 편집기에 적용될 수 있도록 필요할 때만 **굵게**, *기울임*, ++밑줄++, ~~취소선~~, - 목록 형식의 Markdown 표시를 사용.';
 
 const SECTION_PROMPTS: Record<SectionType, string> = {
-  header: '이력서 기본 정보(이름, 직함, 연락처 등) 섹션을 작성',
+  header: `이력서 기본 정보 섹션을 아래 JSON 배열 형식으로 작성.
+형식: [{"name":"이름","title":"직함/포지션","email":"이메일","phone":"전화번호","location":"지역","linkedin":"LinkedIn URL","github":"GitHub URL","website":"개인 웹사이트"}]
+참고 자료에 없는 연락처나 URL은 만들지 말고 빈 문자열로 둘 것.
+마크다운 코드블록 없이 순수 JSON 배열만 출력.`,
   summary: '이력서 자기소개 섹션을 3~5문장으로 작성. 강점과 경력 목표를 포함',
   text: '이력서 섹션 내용을 작성',
   experience: `이력서 경력 섹션을 아래 JSON 배열 형식으로 작성.
