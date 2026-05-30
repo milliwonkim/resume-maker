@@ -259,15 +259,16 @@ export function ResumeEditorPage({ resumeId }: Props) {
 
   const handleSelectedJobApply = useCallback(
     (text: string) => {
-      if (!selectedJob) return;
+      if (!selectedJob) return false;
 
       const content = applyAIResult(selectedJob.sectionType, text);
-      if (content !== null) {
-        updateSectionContent(selectedJob.sectionId, content);
-        editorRef.current?.markSectionDirty(selectedJob.sectionId, content);
-      }
+      if (content === null) return false;
+
+      updateSectionContent(selectedJob.sectionId, content);
+      editorRef.current?.markSectionDirty(selectedJob.sectionId, content);
       removeJob(selectedJob.id);
       setSelectedJob(null);
+      return true;
     },
     [removeJob, selectedJob, updateSectionContent]
   );
