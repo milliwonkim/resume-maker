@@ -6,11 +6,8 @@ import { Dialog } from '@base-ui/react';
 
 import { NotesNavbarButton } from '@/components/notes/NotesNavbarButton';
 import { SettingsDialog } from '@/components/settings/SettingsDialog';
+import { TokenSetupForm } from '@/components/settings/token-setup-form';
 import type { Resume } from '@/lib/types';
-import {
-  USER_TOKEN_COOKIE_NAMES,
-  getClientCookieValue,
-} from '@/lib/user-token-cookies';
 import { useAIStore } from '@/store/ai';
 import { useResumeStore } from '@/store/resume';
 
@@ -29,318 +26,14 @@ const GEMINI_MODELS = [
   { id: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro' },
 ] as const;
 
-const NOTION_INTEGRATIONS_URL = 'https://www.notion.so/my-integrations';
-const NOTION_DATABASE_CONNECTION_HELP_URL =
-  'https://www.notion.com/help/add-and-manage-connections-with-the-api';
-const GOOGLE_AI_STUDIO_API_KEY_URL = 'https://aistudio.google.com/apikey';
-
 interface UserTokensResponse {
   hasCredentials?: boolean;
   ready?: boolean;
   error?: string;
 }
 
-interface NotionDatabaseOption {
-  id: string;
-  title: string;
-}
-
 interface DashboardUser {
   email: string | null;
-}
-
-type SetupStep = 'credentials' | 'database';
-
-function TokenSetupForm({ onReady }: { onReady: () => void }) {
-  const [notionToken, setNotionToken] = useState('');
-  const [notionDatabaseId, setNotionDatabaseId] = useState(() =>
-    getClientCookieValue(USER_TOKEN_COOKIE_NAMES.notionDatabaseId)
-  );
-  const [geminiApiKey, setGeminiApiKey] = useState('');
-  const [setupStep, setSetupStep] = useState<SetupStep>('credentials');
-  const [databaseQuery, setDatabaseQuery] = useState('');
-  const [databases, setDatabases] = useState<NotionDatabaseOption[]>([]);
-  const [isSaving, setIsSaving] = useState(false);
-  const [isSearching, setIsSearching] = useState(false);
-  const [error, setError] = useState('');
-
-  const handleCredentialsSubmit = async () => {
-    setError('');
-    setIsSaving(true);
-    try {
-      const response = await fetch('/api/user-tokens', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          notionToken,
-          geminiApiKey,
-        }),
-      });
-      const data = (await response.json()) as UserTokensResponse;
-      if (!response.ok) {
-        setError(data.error ?? '토큰 확인에 실패했습니다.');
-        return;
-      }
-      setSetupStep('database');
-      setDatabases([]);
-    } catch {
-      setError('네트워크 오류가 발생했습니다.');
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
-  const handleDatabaseSearch = async () => {
-    setError('');
-    setIsSearching(true);
-    try {
-      const params = new URLSearchParams();
-      if (databaseQuery.trim()) params.set('q', databaseQuery.trim());
-      const response = await fetch(
-        `/api/user-tokens/notion-databases?${params.toString()}`
-      );
-      const data = (await response.json()) as {
-        databases?: NotionDatabaseOption[];
-        error?: string;
-      };
-      if (!response.ok) {
-        setError(data.error ?? 'Notion 데이터베이스를 불러오지 못했습니다.');
-        return;
-      }
-      setDatabases(data.databases ?? []);
-    } catch {
-      setError('네트워크 오류가 발생했습니다.');
-    } finally {
-      setIsSearching(false);
-    }
-  };
-
-  const handleDatabaseSubmit = async () => {
-    setError('');
-    setIsSaving(true);
-    try {
-      const response = await fetch('/api/user-tokens', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ notionDatabaseId }),
-      });
-      const data = (await response.json()) as UserTokensResponse;
-      if (!response.ok) {
-        setError(data.error ?? '데이터베이스 확인에 실패했습니다.');
-        return;
-      }
-      onReady();
-    } catch {
-      setError('네트워크 오류가 발생했습니다.');
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
-  const helpLinkClassName =
-    'font-medium text-blue-600 underline-offset-2 hover:text-blue-700 hover:underline';
-
-  return (
-    <div className="mx-auto max-w-lg rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
-      <h2 className="text-center text-lg font-semibold text-gray-900">
-        이력서 만들기전 토큰 세팅
-      </h2>
-      <p className="mt-1 text-center text-sm text-gray-500">
-        입력한 토큰은 서버 데이터베이스에 저장하지 않고 이 브라우저의 로컬
-        저장소에만 보관됩니다. 다른 브라우저나 기기에서는 다시 설정해야 합니다.
-      </p>
-
-      <div className="mt-5 flex rounded-lg bg-gray-100 p-1 text-xs font-medium text-gray-500">
-        <span
-          className={`flex-1 rounded-md px-3 py-1.5 text-center ${
-            setupStep === 'credentials' ? 'bg-white text-gray-900 shadow-sm' : ''
-          }`}
-        >
-          1. 토큰 확인
-        </span>
-        <span
-          className={`flex-1 rounded-md px-3 py-1.5 text-center ${
-            setupStep === 'database' ? 'bg-white text-gray-900 shadow-sm' : ''
-          }`}
-        >
-          2. 데이터베이스 선택
-        </span>
-      </div>
-
-      {setupStep === 'credentials' ? (
-        <div className="mt-5 space-y-4">
-          <div>
-            <label className="mb-1.5 block text-sm font-medium text-gray-700">
-              Notion 통합 토큰
-            </label>
-            <p className="mb-2 text-xs leading-5 text-gray-500">
-              Notion의 내 통합 페이지에서 새 통합을 만든 뒤 Secret 값을
-              복사하세요.{' '}
-              <a
-                href={NOTION_INTEGRATIONS_URL}
-                target="_blank"
-                rel="noreferrer"
-                className={helpLinkClassName}
-              >
-                Notion 통합 만들기
-              </a>
-            </p>
-            <input
-              type="password"
-              value={notionToken}
-              onChange={(event) => setNotionToken(event.target.value)}
-              placeholder="secret_..."
-              className="w-full rounded-lg border border-gray-200 px-3 py-2 font-mono text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none"
-            />
-          </div>
-
-          <div>
-            <label className="mb-1.5 block text-sm font-medium text-gray-700">
-              Gemini API 키
-            </label>
-            <p className="mb-2 text-xs leading-5 text-gray-500">
-              Google AI Studio에서 API 키를 만든 뒤 복사하세요. 키는 외부에
-              공개하지 마세요.{' '}
-              <a
-                href={GOOGLE_AI_STUDIO_API_KEY_URL}
-                target="_blank"
-                rel="noreferrer"
-                className={helpLinkClassName}
-              >
-                Gemini API 키 만들기
-              </a>
-            </p>
-            <input
-              type="password"
-              value={geminiApiKey}
-              onChange={(event) => setGeminiApiKey(event.target.value)}
-              onKeyDown={(event) =>
-                event.key === 'Enter' && void handleCredentialsSubmit()
-              }
-              placeholder="AIza..."
-              className="w-full rounded-lg border border-gray-200 px-3 py-2 font-mono text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none"
-            />
-          </div>
-        </div>
-      ) : (
-        <div className="mt-5 space-y-4">
-          <div>
-            <label className="mb-1.5 block text-sm font-medium text-gray-700">
-              Notion 데이터베이스 선택
-            </label>
-            <p className="mb-2 text-xs leading-5 text-gray-500">
-              이력서를 저장할 Notion 데이터베이스를 만들고, 1단계에서 만든
-              통합을 데이터베이스 연결에 추가하세요.{' '}
-              <a
-                href={NOTION_DATABASE_CONNECTION_HELP_URL}
-                target="_blank"
-                rel="noreferrer"
-                className={helpLinkClassName}
-              >
-                데이터베이스 연결 방법
-              </a>
-            </p>
-            <div className="flex gap-2">
-              <input
-                type="text"
-                value={databaseQuery}
-                onChange={(event) => setDatabaseQuery(event.target.value)}
-                onKeyDown={(event) =>
-                  event.key === 'Enter' && void handleDatabaseSearch()
-                }
-                placeholder="데이터베이스 이름으로 검색"
-                className="min-w-0 flex-1 rounded-lg border border-gray-200 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none"
-              />
-              <button
-                type="button"
-                onClick={handleDatabaseSearch}
-                disabled={isSearching}
-                className="rounded-lg border border-gray-200 px-3 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-50"
-              >
-                {isSearching ? '검색 중' : '검색'}
-              </button>
-            </div>
-            {databases.length > 0 && (
-              <div className="mt-2 max-h-36 overflow-y-auto rounded-lg border border-gray-200">
-                {databases.map((database) => (
-                  <button
-                    key={database.id}
-                    type="button"
-                    onClick={() => setNotionDatabaseId(database.id)}
-                    className={`block w-full border-b border-gray-100 px-3 py-2 text-left text-sm last:border-0 hover:bg-blue-50 ${
-                      notionDatabaseId === database.id
-                        ? 'bg-blue-50 text-blue-700'
-                        : 'text-gray-700'
-                    }`}
-                  >
-                    <span className="block truncate font-medium">
-                      {database.title}
-                    </span>
-                    <span className="block truncate font-mono text-xs text-gray-400">
-                      {database.id}
-                    </span>
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-
-          <div>
-            <label className="mb-1.5 block text-sm font-medium text-gray-700">
-              또는 데이터베이스 URL 직접 입력
-            </label>
-            <input
-              type="text"
-              value={notionDatabaseId}
-              onChange={(event) => setNotionDatabaseId(event.target.value)}
-              onKeyDown={(event) =>
-                event.key === 'Enter' && void handleDatabaseSubmit()
-              }
-              placeholder="https://www.notion.so/..."
-              className="w-full rounded-lg border border-gray-200 px-3 py-2 font-mono text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none"
-            />
-          </div>
-        </div>
-      )}
-
-      {error && (
-        <p className="mt-3 rounded-lg bg-red-50 p-3 text-sm text-red-500">
-          {error}
-        </p>
-      )}
-
-      <button
-        type="button"
-        onClick={
-          setupStep === 'credentials'
-            ? handleCredentialsSubmit
-            : handleDatabaseSubmit
-        }
-        disabled={isSaving}
-        className="mt-5 w-full rounded-lg bg-gray-900 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-gray-700 disabled:opacity-50"
-      >
-        {isSaving
-          ? setupStep === 'credentials'
-            ? '토큰 확인 중...'
-            : '데이터베이스 확인 중...'
-          : setupStep === 'credentials'
-            ? '토큰 확인하고 다음'
-            : '데이터베이스 확인하고 시작'}
-      </button>
-      {setupStep === 'database' && (
-        <button
-          type="button"
-          onClick={() => {
-            setError('');
-            setSetupStep('credentials');
-          }}
-          className="mt-2 w-full rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50"
-        >
-          이전 단계
-        </button>
-      )}
-    </div>
-  );
 }
 
 export function ResumeDashboard() {
@@ -454,11 +147,15 @@ export function ResumeDashboard() {
   }, [loadResumes, tokenReady]);
 
   const handleEmailAuth = async () => {
-    setEmailError('Notion 데이터베이스 모드에서는 별도 로그인이 필요하지 않습니다.');
+    setEmailError(
+      'Notion 데이터베이스 모드에서는 별도 로그인이 필요하지 않습니다.'
+    );
   };
 
   const handleGoogleSignIn = async () => {
-    setAuthError('Notion 데이터베이스 모드에서는 별도 로그인이 필요하지 않습니다.');
+    setAuthError(
+      'Notion 데이터베이스 모드에서는 별도 로그인이 필요하지 않습니다.'
+    );
   };
 
   const handleSignOut = async () => {
@@ -506,6 +203,13 @@ export function ResumeDashboard() {
     setAiCopyModel(geminiModel);
     setAiCopyError('');
   };
+
+  const handleTokensReady = useCallback(() => {
+    setTokenReady(true);
+    setAuthLoading(false);
+    setSettingsOpen(false);
+    void loadResumes({ claimOrphans: false });
+  }, [loadResumes]);
 
   const handleAiCopy = async () => {
     if (!aiCopyTarget) return;
@@ -583,33 +287,37 @@ export function ResumeDashboard() {
                 </span>
 
                 <NotesNavbarButton />
+              </>
+            )}
 
-                <button
-                  type="button"
-                  onClick={() => setSettingsOpen(true)}
-                  className="flex h-8 w-8 items-center justify-center rounded-md text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
-                  title="설정"
-                >
-                  <svg
-                    className="h-4 w-4"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                    strokeWidth="1.5"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.325.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.241-.438.613-.43.992a7.723 7.723 0 010 .255c-.008.378.137.75.43.991l1.004.827c.424.35.534.955.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.94-1.11.94h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 010-.255c.007-.38-.138-.751-.43-.992l-1.004-.827a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.086.22-.128.332-.183.582-.495.644-.869l.214-1.28z"
-                    />
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-                    />
-                  </svg>
-                </button>
+            <button
+              type="button"
+              onClick={() => setSettingsOpen(true)}
+              className="flex h-8 w-8 items-center justify-center rounded-md text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
+              title="설정"
+            >
+              <svg
+                className="h-4 w-4"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth="1.5"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.325.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.241-.438.613-.43.992a7.723 7.723 0 010 .255c-.008.378.137.75.43.991l1.004.827c.424.35.534.955.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.94-1.11.94h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 010-.255c.007-.38-.138-.751-.43-.992l-1.004-.827a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.086.22-.128.332-.183.582-.495.644-.869l.214-1.28z"
+                />
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+                />
+              </svg>
+            </button>
 
+            {user && (
+              <>
                 <button
                   type="button"
                   onClick={handleSignOut}
@@ -698,12 +406,7 @@ export function ResumeDashboard() {
             토큰 설정 확인 중...
           </div>
         ) : !tokenReady ? (
-          <TokenSetupForm
-            onReady={() => {
-              setTokenReady(true);
-              setAuthLoading(false);
-            }}
-          />
+          <TokenSetupForm onReady={handleTokensReady} />
         ) : authLoading ? (
           <div className="flex items-center justify-center py-24 text-sm text-gray-400">
             로그인 상태 확인 중...
@@ -964,7 +667,10 @@ export function ResumeDashboard() {
       </main>
 
       {settingsOpen && (
-        <SettingsDialog onClose={() => setSettingsOpen(false)} />
+        <SettingsDialog
+          onClose={() => setSettingsOpen(false)}
+          onTokensReady={handleTokensReady}
+        />
       )}
 
       {/* Delete confirmation */}
