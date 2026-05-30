@@ -30,7 +30,10 @@ export interface ResumeEditorRef {
 const SAVE_DEBOUNCE_MS = 800;
 const TEMP_SECTION_ID_PREFIX = 'temp-section-';
 
-async function readApiError(response: Response, fallback: string): Promise<string> {
+async function readApiError(
+  response: Response,
+  fallback: string
+): Promise<string> {
   const payload = (await response.json().catch(() => null)) as {
     error?: string;
   } | null;
@@ -96,7 +99,9 @@ export const ResumeEditor = forwardRef<ResumeEditorRef, Props>(
     const [addingSectionType, setAddingSectionType] =
       useState<SectionType | null>(null);
     const [sectionAddError, setSectionAddError] = useState<string | null>(null);
-    const [sectionSaveError, setSectionSaveError] = useState<string | null>(null);
+    const [sectionSaveError, setSectionSaveError] = useState<string | null>(
+      null
+    );
     const visibleSections = useMemo(
       () => sections.filter((s) => s.id),
       [sections]
@@ -305,7 +310,12 @@ export const ResumeEditor = forwardRef<ResumeEditorRef, Props>(
 
     useEffect(() => {
       if (!autoSave) return;
-      void flushPendingSaves();
+
+      const timer = window.setTimeout(() => {
+        void flushPendingSaves();
+      }, 0);
+
+      return () => window.clearTimeout(timer);
     }, [autoSave, flushPendingSaves]);
 
     useEffect(() => {
@@ -522,8 +532,7 @@ export const ResumeEditor = forwardRef<ResumeEditorRef, Props>(
               error?: string;
             } | null;
             setSectionAddError(
-              payload?.error ??
-                '섹션을 추가하지 못했습니다. 다시 시도해주세요.'
+              payload?.error ?? '섹션을 추가하지 못했습니다. 다시 시도해주세요.'
             );
             return;
           }
@@ -557,8 +566,10 @@ export const ResumeEditor = forwardRef<ResumeEditorRef, Props>(
           {visibleSections.map((section, index) => (
             <div
               key={section.id}
-              className={`resume-section-wrapper relative rounded-lg pt-10 transition-all print:pt-0 print:ring-0 print:ring-offset-0 sm:pt-8 ${
-                draggedSectionId === section.id ? 'opacity-50 print:opacity-100' : ''
+              className={`resume-section-wrapper relative rounded-lg pt-10 transition-all sm:pt-8 print:pt-0 print:ring-0 print:ring-offset-0 ${
+                draggedSectionId === section.id
+                  ? 'opacity-50 print:opacity-100'
+                  : ''
               } ${
                 dropTargetSectionId === section.id &&
                 draggedSectionId !== section.id

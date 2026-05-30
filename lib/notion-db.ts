@@ -73,6 +73,7 @@ interface NotionBlocksResponse {
 
 interface DatabaseInfo {
   titlePropertyName: string;
+  properties?: Record<string, { type: string }>;
 }
 
 interface NotionEntityInput {
@@ -164,7 +165,7 @@ async function getDatabaseInfoById(databaseId: string): Promise<DatabaseInfo> {
     throw new Error('Notion 데이터베이스에 제목 속성이 필요합니다.');
   }
 
-  return { titlePropertyName };
+  return { titlePropertyName, properties: database.properties };
 }
 
 async function getDatabaseInfo(): Promise<DatabaseInfo> {
@@ -321,13 +322,53 @@ function sectionTitle(input: NotionSectionInput): string {
   return `${input.sectionType} ${input.orderIndex + 1}`;
 }
 
+function sectionMetadataProperties(input: NotionSectionInput) {
+  return {
+    EntityId: { rich_text: richText(input.id) },
+    ResumeId: { rich_text: richText(input.resumeId) },
+    SectionType: { select: { name: input.sectionType } },
+    Layout: { rich_text: richText(input.layout) },
+    Order: { number: input.orderIndex },
+    UpdatedAt: {
+      date: { start: input.updatedAt ?? new Date().toISOString() },
+    },
+  };
+}
+
 function sectionProperties(
   input: NotionSectionInput,
   titlePropertyName: string
 ) {
   return {
     [titlePropertyName]: { title: titleText(sectionTitle(input)) },
+    ...sectionMetadataProperties(input),
   };
+}
+
+function sectionDatabaseProperties(titlePropertyName = '이름') {
+  return {
+    [titlePropertyName]: { title: {} },
+    EntityId: { rich_text: {} },
+    ResumeId: { rich_text: {} },
+    SectionType: {
+      select: { options: SECTION_TYPES.map((name) => ({ name })) },
+    },
+    Layout: { rich_text: {} },
+    Order: { number: { format: 'number' } },
+    UpdatedAt: { date: {} },
+  };
+}
+
+function missingSectionDatabaseProperties(database: DatabaseInfo): string[] {
+  const properties = database.properties ?? {};
+  return [
+    'EntityId',
+    'ResumeId',
+    'SectionType',
+    'Layout',
+    'Order',
+    'UpdatedAt',
+  ].filter((propertyName) => !(propertyName in properties));
 }
 
 function sectionRecordContent(
@@ -381,14 +422,17 @@ async function queryEntities(kind: EntityKind): Promise<NotionPage[]> {
   try {
     do {
       const response: NotionQueryResponse =
-        await notionFetch<NotionQueryResponse>(`databases/${databaseId}/query`, {
-          method: 'POST',
-          body: JSON.stringify({
-            filter: { property: 'Kind', select: { equals: kind } },
-            start_cursor: cursor ?? undefined,
-            page_size: 100,
-          }),
-        });
+        await notionFetch<NotionQueryResponse>(
+          `databases/${databaseId}/query`,
+          {
+            method: 'POST',
+            body: JSON.stringify({
+              filter: { property: 'Kind', select: { equals: kind } },
+              start_cursor: cursor ?? undefined,
+              page_size: 100,
+            }),
+          }
+        );
       pages.push(...response.results);
       cursor = response.has_more ? response.next_cursor : null;
     } while (cursor);
@@ -427,9 +471,8 @@ async function findEntity(
   const { databaseId } = await requireServerNotionConfig();
 
   try {
-    const response: NotionQueryResponse = await notionFetch<NotionQueryResponse>(
-      `databases/${databaseId}/query`,
-      {
+    const response: NotionQueryResponse =
+      await notionFetch<NotionQueryResponse>(`databases/${databaseId}/query`, {
         method: 'POST',
         body: JSON.stringify({
           filter: {
@@ -440,8 +483,7 @@ async function findEntity(
           },
           page_size: 1,
         }),
-      }
-    );
+      });
     return response.results[0] ?? null;
   } catch (error) {
     if (isUnsupportedKindSelectError(error)) return null;
@@ -474,9 +516,7 @@ async function createResumeSectionsDatabase(
     body: JSON.stringify({
       parent: { type: 'page_id', page_id: resumePageId },
       title: richText(RESUME_SECTIONS_DATABASE_TITLE),
-      properties: {
-        이름: { title: {} },
-      },
+      properties: sectionDatabaseProperties(),
     }),
   });
   const titlePropertyName =
@@ -484,7 +524,11 @@ async function createResumeSectionsDatabase(
       ([, property]) => property.type === 'title'
     )?.[0] ?? 'Name';
 
-  return { databaseId: database.id, titlePropertyName };
+  return {
+    databaseId: database.id,
+    titlePropertyName,
+    properties: database.properties,
+  };
 }
 
 async function findResumeSectionsDatabase(
@@ -508,13 +552,32 @@ async function findResumeSectionsDatabase(
   };
 }
 
+async function updateSectionDatabaseSchema(
+  databaseId: string,
+  database: DatabaseInfo
+): Promise<DatabaseInfo & { databaseId: string }> {
+  const missingProperties = missingSectionDatabaseProperties(database);
+  if (missingProperties.length === 0) {
+    return { ...database, databaseId };
+  }
+
+  await notionFetch(`databases/${databaseId}`, {
+    method: 'PATCH',
+    body: JSON.stringify({
+      properties: sectionDatabaseProperties(database.titlePropertyName),
+    }),
+  });
+
+  return { databaseId, ...(await getDatabaseInfoById(databaseId)) };
+}
+
 async function ensureResumeSectionsDatabase(
   resumePageId: string
 ): Promise<DatabaseInfo & { databaseId: string }> {
-  return (
+  const database =
     (await findResumeSectionsDatabase(resumePageId)) ??
-    createResumeSectionsDatabase(resumePageId)
-  );
+    (await createResumeSectionsDatabase(resumePageId));
+  return updateSectionDatabaseSchema(database.databaseId, database);
 }
 
 async function createSectionPage(
@@ -728,27 +791,41 @@ async function normalizeNestedSectionPage(
 ): Promise<ResumeSection | null> {
   const content = await readJsonContent<unknown>(page.id, null);
   const storedSection = normalizeStoredSection(content);
-  if (storedSection) {
-    return toResumeSection({
-      ...storedSection,
-      resume_id: storedSection.resume_id || resumeId,
-    });
-  }
-
   const parsed = parseSectionTitle(titleFromPage(page, titlePropertyName));
-  if (!parsed) return null;
+  const propertyType = selectValue(page, 'SectionType');
+  const sectionType =
+    storedSection?.type ??
+    (isSectionType(propertyType) ? propertyType : undefined) ??
+    parsed?.sectionType;
 
-  const now = new Date().toISOString();
-  return {
-    id: page.id,
-    resume_id: resumeId,
-    type: parsed.sectionType,
-    layout: 'layout1',
-    content: normalizeSectionContent(parsed.sectionType, {}),
-    order_index: parsed.orderIndex,
-    created_at: page.created_time || now,
-    updated_at: page.last_edited_time || now,
+  if (!sectionType) return null;
+
+  const metadataSection: StoredResumeSection = {
+    id: (storedSection?.id ?? richTextValue(page, 'EntityId')) || page.id,
+    resume_id:
+      storedSection?.resume_id || richTextValue(page, 'ResumeId') || resumeId,
+    type: sectionType,
+    layout:
+      (storedSection?.layout ?? richTextValue(page, 'Layout')) || 'layout1',
+    content:
+      storedSection?.content ??
+      compactSectionContent(
+        sectionType,
+        normalizeSectionContent(sectionType, {})
+      ),
+    order_index:
+      storedSection?.order_index ??
+      numberValue(page, 'Order') ??
+      parsed?.orderIndex ??
+      0,
+    created_at: storedSection?.created_at ?? page.created_time,
+    updated_at:
+      storedSection?.updated_at ??
+      page.properties.UpdatedAt?.date?.start ??
+      page.last_edited_time,
   };
+
+  return toResumeSection(metadataSection);
 }
 
 async function loadNestedSections(
@@ -766,9 +843,7 @@ async function loadNestedSections(
     .sort((a, b) => a.order_index - b.order_index);
 }
 
-async function ensureSectionStorage(
-  resumeId: string
-): Promise<{
+async function ensureSectionStorage(resumeId: string): Promise<{
   resumePage: NotionPage;
   database: DatabaseInfo & { databaseId: string };
 }> {
@@ -789,31 +864,74 @@ async function resolveSectionPageTarget(
   return target;
 }
 
+async function rewriteNestedSectionPages(
+  resumeId: string,
+  database: DatabaseInfo & { databaseId: string },
+  sections: ResumeSection[]
+): Promise<void> {
+  const pages = await queryDatabasePages(database.databaseId);
+  const pagesBySectionId = new Map<string, NotionPage>();
+
+  for (const page of pages) {
+    const section = await normalizeNestedSectionPage(
+      page,
+      resumeId,
+      database.titlePropertyName
+    );
+    if (section) pagesBySectionId.set(section.id, page);
+  }
+
+  await Promise.all(
+    sections.map((section, index) => {
+      const page = pagesBySectionId.get(section.id);
+      const input: NotionSectionInput = {
+        id: section.id,
+        resumeId,
+        sectionType: section.type,
+        layout: section.layout,
+        orderIndex: index,
+        updatedAt: section.updated_at,
+        content: compactSectionContent(section.type, section.content),
+      };
+
+      return page
+        ? updateSectionPage(page.id, database.titlePropertyName, input)
+        : createSectionPage(
+            database.databaseId,
+            database.titlePropertyName,
+            input
+          );
+    })
+  );
+}
+
 async function migrateLegacySectionsToNestedDatabase(
   resumeId: string,
   resumePage: NotionPage,
   database: DatabaseInfo & { databaseId: string }
 ): Promise<void> {
-  const existingPages = await queryDatabasePages(database.databaseId);
-  if (existingPages.length > 0) return;
-
   const legacySections = await getLegacySectionsByResumeId(
     resumeId,
     resumePage
   );
-  await Promise.all(
-    legacySections.map((section) =>
-      createSectionPage(database.databaseId, database.titlePropertyName, {
-        id: section.id,
-        resumeId,
-        sectionType: section.type,
-        layout: section.layout,
-        orderIndex: section.order_index,
-        updatedAt: section.updated_at,
-        content: compactSectionContent(section.type, section.content),
-      })
-    )
-  );
+  if (legacySections.length === 0) return;
+
+  const nestedSections = await loadNestedSections(resumeId, database);
+  if (nestedSections.length > 0) {
+    const nestedSectionIds = new Set(
+      nestedSections.map((section) => section.id)
+    );
+    const missingLegacySections = legacySections.filter(
+      (section) => !nestedSectionIds.has(section.id)
+    );
+    await rewriteNestedSectionPages(resumeId, database, [
+      ...nestedSections,
+      ...missingLegacySections,
+    ]);
+  } else {
+    await rewriteNestedSectionPages(resumeId, database, legacySections);
+  }
+
   await archivePageJsonContent(resumePage.id);
 
   const legacyPages = (await queryEntities('section')).filter(
@@ -932,15 +1050,30 @@ async function getSectionInputBase(
     const parsedTitle = parseSectionTitle(
       titleFromPage(target.page, target.titlePropertyName)
     );
-    const sectionType = storedSection?.type ?? parsedTitle?.sectionType;
+    const propertyType = selectValue(target.page, 'SectionType');
+    const sectionType =
+      storedSection?.type ??
+      (isSectionType(propertyType) ? propertyType : undefined) ??
+      parsedTitle?.sectionType;
     if (!sectionType) throw new Error('섹션 타입을 찾을 수 없습니다.');
 
     return {
-      id: storedSection?.id ?? sectionId,
-      resumeId: storedSection?.resume_id || resumeId,
+      id:
+        (storedSection?.id ?? richTextValue(target.page, 'EntityId')) ||
+        sectionId,
+      resumeId:
+        storedSection?.resume_id ||
+        richTextValue(target.page, 'ResumeId') ||
+        resumeId,
       sectionType,
-      layout: storedSection?.layout ?? 'layout1',
-      orderIndex: storedSection?.order_index ?? parsedTitle?.orderIndex ?? 0,
+      layout:
+        (storedSection?.layout ?? richTextValue(target.page, 'Layout')) ||
+        'layout1',
+      orderIndex:
+        storedSection?.order_index ??
+        numberValue(target.page, 'Order') ??
+        parsedTitle?.orderIndex ??
+        0,
       content: storedSection?.content,
     };
   }
@@ -1024,15 +1157,10 @@ async function getSectionsByResumeId(
   const resumePage = await findEntity('resume', resumeId);
   if (!resumePage) return [];
 
-  const database = await findResumeSectionsDatabase(resumePage.id);
-  if (database) {
-    let nestedSections = await loadNestedSections(resumeId, database);
-    if (nestedSections.length === 0) {
-      await migrateLegacySectionsToNestedDatabase(resumeId, resumePage, database);
-      nestedSections = await loadNestedSections(resumeId, database);
-    }
-    if (nestedSections.length > 0) return nestedSections;
-  }
+  const database = await ensureResumeSectionsDatabase(resumePage.id);
+  await migrateLegacySectionsToNestedDatabase(resumeId, resumePage, database);
+  const nestedSections = await loadNestedSections(resumeId, database);
+  if (nestedSections.length > 0) return nestedSections;
 
   return getLegacySectionsByResumeId(resumeId, resumePage);
 }
