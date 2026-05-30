@@ -1,7 +1,10 @@
-import { NextRequest } from 'next/server';
 import { cookies } from 'next/headers';
+import type { NextRequest } from 'next/server';
 
 const NOTION_VERSION = '2022-06-28';
+const NOTION_PAGE_SIZE = '100';
+const PROPERTY_LABEL = '속성';
+const DATABASE_LABEL = '데이터베이스';
 
 interface RichText {
   plain_text: string;
@@ -35,12 +38,13 @@ interface NotionProperty {
   email?: string | null;
   phone_number?: string | null;
   people?: Array<{ name?: string }>;
-  relation?: unknown[];
+  relation?: Array<{ id?: string }>;
   formula?: {
     type: string;
     string?: string;
     number?: number;
     boolean?: boolean;
+    date?: { start: string; end?: string } | null;
   };
 }
 
@@ -49,12 +53,106 @@ interface NotionPageResponse {
   properties: Record<string, NotionProperty>;
 }
 
+interface NotionDatabaseQueryResponse {
+  results: NotionPageResponse[];
+  has_more: boolean;
+  next_cursor: string | null;
+}
+
 function notionHeaders(token: string): HeadersInit {
   return {
     Authorization: `Bearer ${token}`,
     'Notion-Version': NOTION_VERSION,
     'Content-Type': 'application/json',
   };
+}
+
+function extractRichText(richText: RichText[]): string {
+  return richText.map((text) => text.plain_text).join('');
+}
+
+function formatDateRange(date: { start: string; end?: string } | null): string {
+  if (!date) return '';
+  return date.end ? `${date.start} ~ ${date.end}` : date.start;
+}
+
+function formatFormula(property: NotionProperty): string {
+  const formula = property.formula;
+  if (!formula) return '';
+
+  if (formula.type === 'string') return formula.string ?? '';
+  if (formula.type === 'number') return String(formula.number ?? '');
+  if (formula.type === 'boolean') return formula.boolean ? 'true' : 'false';
+  if (formula.type === 'date') return formatDateRange(formula.date ?? null);
+
+  return '';
+}
+
+function propertyValue(property: NotionProperty): string {
+  switch (property.type) {
+    case 'title':
+      return extractRichText(property.title ?? []);
+    case 'rich_text':
+      return extractRichText(property.rich_text ?? []);
+    case 'number':
+      return property.number === null || property.number === undefined
+        ? ''
+        : String(property.number);
+    case 'select':
+      return property.select?.name ?? '';
+    case 'multi_select':
+      return property.multi_select?.map((item) => item.name).join(', ') ?? '';
+    case 'status':
+      return property.status?.name ?? '';
+    case 'date':
+      return formatDateRange(property.date ?? null);
+    case 'checkbox':
+      return property.checkbox === undefined
+        ? ''
+        : property.checkbox
+          ? '예'
+          : '아니오';
+    case 'url':
+      return property.url ?? '';
+    case 'email':
+      return property.email ?? '';
+    case 'phone_number':
+      return property.phone_number ?? '';
+    case 'people':
+      return (
+        property.people
+          ?.map((person) => person.name)
+          .filter(Boolean)
+          .join(', ') ?? ''
+      );
+    case 'relation':
+      return (
+        property.relation
+          ?.map((relation) => relation.id)
+          .filter(Boolean)
+          .join(', ') ?? ''
+      );
+    case 'formula':
+      return formatFormula(property);
+    default:
+      return '';
+  }
+}
+
+function pageTitle(page: NotionPageResponse): string {
+  const titleProperty = Object.values(page.properties).find(
+    (property) => property.type === 'title'
+  );
+  return propertyValue(titleProperty ?? { type: 'title', title: [] });
+}
+
+function propertiesText(properties: Record<string, NotionProperty>): string {
+  const lines = Object.entries(properties)
+    .map(([name, property]) => ({ name, value: propertyValue(property) }))
+    .filter((item) => item.value.trim())
+    .map((item) => `- ${item.name}: ${item.value}`);
+
+  return lines.length > 0 ? `${PROPERTY_LABEL}:\n${lines.join('\n')}` : '';
 }
 
 async function fetchAllBlocks(
@@ -66,13 +164,15 @@ async function fetchAllBlocks(
 
   do {
     const url = new URL(`https://api.notion.com/v1/blocks/${blockId}/children`);
-    url.searchParams.set('page_size', '100');
+    url.searchParams.set('page_size', NOTION_PAGE_SIZE);
     if (cursor) url.searchParams.set('start_cursor', cursor);
 
-    const res = await fetch(url.toString(), { headers: notionHeaders(token) });
-    if (!res.ok) break;
+    const response = await fetch(url.toString(), {
+      headers: notionHeaders(token),
+    });
+    if (!response.ok) throw new Error('Notion 블록을 불러오지 못했습니다.');
 
-    const data = (await res.json()) as NotionBlocksResponse;
+    const data = (await response.json()) as NotionBlocksResponse;
     blocks.push(...data.results);
     cursor = data.has_more ? data.next_cursor : null;
   } while (cursor);
@@ -80,8 +180,58 @@ async function fetchAllBlocks(
   return blocks;
 }
 
-function extractRichText(richText: RichText[]): string {
-  return richText.map((t) => t.plain_text).join('');
+async function fetchDatabasePages(
+  databaseId: string,
+  token: string
+): Promise<NotionPageResponse[]> {
+  const pages: NotionPageResponse[] = [];
+  let cursor: string | null = null;
+
+  do {
+    const response = await fetch(
+      `https://api.notion.com/v1/databases/${databaseId}/query`,
+      {
+        method: 'POST',
+        headers: notionHeaders(token),
+        body: JSON.stringify({
+          start_cursor: cursor ?? undefined,
+          page_size: Number(NOTION_PAGE_SIZE),
+        }),
+      }
+    );
+
+    if (!response.ok)
+      throw new Error('Notion 데이터베이스를 불러오지 못했습니다.');
+
+    const data = (await response.json()) as NotionDatabaseQueryResponse;
+    pages.push(...data.results);
+    cursor = data.has_more ? data.next_cursor : null;
+  } while (cursor);
+
+  return pages;
+}
+
+async function processDatabase(
+  databaseId: string,
+  token: string,
+  depth: number
+): Promise<string> {
+  const rows = await fetchDatabasePages(databaseId, token);
+  const rowTexts: string[] = [];
+
+  for (const row of rows) {
+    const title = pageTitle(row) || '제목 없음';
+    const blocks = await fetchAllBlocks(row.id, token);
+    const propertyLines = propertiesText(row.properties);
+    const body = await processBlocks(blocks, token, depth + 1);
+    rowTexts.push(
+      [`${'#'.repeat(Math.min(depth + 2, 6))} ${title}`, propertyLines, body]
+        .filter(Boolean)
+        .join('\n')
+    );
+  }
+
+  return rowTexts.join('\n\n');
 }
 
 async function processBlock(
@@ -189,7 +339,8 @@ async function processBlock(
     }
     case 'child_database': {
       const title = (content?.title as string) ?? '(제목 없음)';
-      text = `\n${indent}[데이터베이스: ${title}]`;
+      const rows = await processDatabase(block.id, token, depth + 1);
+      text = `\n${indent}[${DATABASE_LABEL}: ${title}]${rows ? `\n${rows}` : ''}`;
       return text;
     }
     case 'link_to_page': {
@@ -204,7 +355,6 @@ async function processBlock(
     case 'synced_block':
     case 'template':
     case 'table':
-      // container — handled via has_children below
       break;
     default: {
       const richText = content?.rich_text as RichText[] | undefined;
@@ -268,23 +418,24 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    let text = '';
     const page = (await pageRes.json()) as NotionPageResponse;
-    const titleProp = Object.values(page.properties).find(
-      (p) => p.type === 'title'
-    );
-    const title = titleProp?.title?.map((t) => t.plain_text).join('') ?? '';
-    if (title) text += `# ${title}\n\n`;
+    const title = pageTitle(page);
+    const parts: string[] = [];
+
+    if (title) parts.push(`# ${title}`);
+
+    const pagePropertyLines = propertiesText(page.properties);
+    if (pagePropertyLines) parts.push(pagePropertyLines);
 
     const blocks = await fetchAllBlocks(pageId, token);
     const body = await processBlocks(blocks, token, 0);
-    text += body;
+    if (body) parts.push(body);
 
-    return Response.json({ text: text.trim() });
-  } catch (err) {
+    return Response.json({ text: parts.join('\n\n').trim() });
+  } catch (error) {
     return Response.json(
       {
-        error: `페이지 불러오기 실패: ${err instanceof Error ? err.message : '알 수 없는 오류'}`,
+        error: `페이지 불러오기 실패: ${error instanceof Error ? error.message : '알 수 없는 오류'}`,
       },
       { status: 500 }
     );
