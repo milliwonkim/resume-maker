@@ -34,13 +34,46 @@ function toRichTextValue(value: unknown): string {
   return '';
 }
 
-export function parseJsonArray(text: string): unknown[] {
+function parseJsonValue(text: string): unknown {
   const trimmed = text.trim();
   const fenced = trimmed.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i);
   const source = fenced?.[1] ?? trimmed;
-  const parsed: unknown = JSON.parse(source);
+  return JSON.parse(source);
+}
+
+export function parseJsonArray(text: string): unknown[] {
+  const parsed = parseJsonValue(text);
   if (!Array.isArray(parsed)) throw new Error('AI result is not a JSON array');
   return parsed;
+}
+
+function getSectionItemsFromRecord(
+  sectionType: SectionType,
+  parsed: Record<string, unknown>
+): unknown[] | null {
+  if (sectionType === 'header') return [parsed];
+  if (sectionType === 'skills' && Array.isArray(parsed.categories)) {
+    return parsed.categories;
+  }
+  if (
+    (sectionType === 'experience' ||
+      sectionType === 'education' ||
+      sectionType === 'projects') &&
+    Array.isArray(parsed.items)
+  ) {
+    return parsed.items;
+  }
+  return null;
+}
+
+function parseSectionItems(sectionType: SectionType, text: string): unknown[] {
+  const parsed = parseJsonValue(text);
+  if (Array.isArray(parsed)) return parsed;
+  if (isRecord(parsed)) {
+    const items = getSectionItemsFromRecord(sectionType, parsed);
+    if (items !== null) return items;
+  }
+  throw new Error('AI result does not match the section JSON shape');
 }
 
 function isSchoolType(
@@ -210,7 +243,7 @@ export function applyAIResult(
   }
 
   try {
-    const parsed = parseJsonArray(text);
+    const parsed = parseSectionItems(sectionType, text);
 
     if (sectionType === 'header') {
       const item = parsed.find(isRecord);
