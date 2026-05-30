@@ -3,6 +3,7 @@ import type {
   SectionType,
   SectionContent,
   SummaryContent,
+  TextContent,
   HeaderContent,
   ExperienceContent,
   EducationContent,
@@ -16,6 +17,8 @@ const SCHOOL_TYPES = ['university', 'highschool', 'middleschool'] as const;
 const GPA_SCALES = ['4.5', '4.3', '4.0'] as const;
 const ADDITIONAL_MAJOR_FALLBACK_LABEL = '추가 전공';
 const DEFAULT_HIGH_SCHOOL_CATEGORY: HighSchoolCategory = '인문계(일반고)';
+const JSON_CODE_FENCE_PATTERN = /```(?:json)?\s*([\s\S]*?)\s*```/i;
+const JSON_OPENING_BRACKETS = ['{', '['] as const;
 
 export function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -34,13 +37,114 @@ function toRichTextValue(value: unknown): string {
   return '';
 }
 
-export function parseJsonArray(text: string): unknown[] {
+function getClosingBracket(value: string): '}' | ']' | null {
+  if (value === '{') return '}';
+  if (value === '[') return ']';
+  return null;
+}
+
+function findJsonCandidate(value: string): string | null {
+  for (let start = 0; start < value.length; start += 1) {
+    if (!JSON_OPENING_BRACKETS.includes(value[start] as '{' | '[')) continue;
+
+    const stack: string[] = [];
+    let isInString = false;
+    let isEscaped = false;
+
+    for (let index = start; index < value.length; index += 1) {
+      const character = value[index];
+
+      if (isInString) {
+        if (isEscaped) {
+          isEscaped = false;
+          continue;
+        }
+        if (character === '\\') {
+          isEscaped = true;
+          continue;
+        }
+        if (character === '"') isInString = false;
+        continue;
+      }
+
+      if (character === '"') {
+        isInString = true;
+        continue;
+      }
+
+      const closingBracket = getClosingBracket(character);
+      if (closingBracket !== null) {
+        stack.push(closingBracket);
+        continue;
+      }
+
+      if (character === stack.at(-1)) {
+        stack.pop();
+        if (stack.length === 0) return value.slice(start, index + 1);
+      }
+    }
+  }
+
+  return null;
+}
+
+function getJsonSource(text: string): string {
   const trimmed = text.trim();
-  const fenced = trimmed.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i);
-  const source = fenced?.[1] ?? trimmed;
-  const parsed: unknown = JSON.parse(source);
+  const fenced = trimmed.match(JSON_CODE_FENCE_PATTERN);
+  if (fenced?.[1]) return fenced[1].trim();
+  return findJsonCandidate(trimmed) ?? trimmed;
+}
+
+function parseJsonValue(text: string): unknown {
+  return JSON.parse(getJsonSource(text));
+}
+
+export function parseJsonArray(text: string): unknown[] {
+  const parsed = parseJsonValue(text);
   if (!Array.isArray(parsed)) throw new Error('AI result is not a JSON array');
   return parsed;
+}
+
+function getSectionItemsFromRecord(
+  sectionType: SectionType,
+  parsed: Record<string, unknown>
+): unknown[] | null {
+  if (isRecord(parsed.content)) {
+    return getSectionItemsFromRecord(sectionType, parsed.content);
+  }
+  if (sectionType === 'header') return [parsed];
+  if (sectionType === 'skills' && Array.isArray(parsed.categories)) {
+    return parsed.categories;
+  }
+  if (
+    (sectionType === 'experience' ||
+      sectionType === 'education' ||
+      sectionType === 'projects') &&
+    Array.isArray(parsed.items)
+  ) {
+    return parsed.items;
+  }
+  return null;
+}
+
+function parseSectionItems(sectionType: SectionType, text: string): unknown[] {
+  const parsed = parseJsonValue(text);
+  if (Array.isArray(parsed)) return parsed;
+  if (isRecord(parsed)) {
+    const items = getSectionItemsFromRecord(sectionType, parsed);
+    if (items !== null) return items;
+  }
+  throw new Error('AI result does not match the section JSON shape');
+}
+
+function getRichTextApplyValue(text: string): unknown {
+  try {
+    const parsed = parseJsonValue(text);
+    if (isRecord(parsed) && 'text' in parsed) return parsed.text;
+  } catch {
+    return text;
+  }
+  return text;
 }
 
 function isSchoolType(
@@ -206,11 +310,13 @@ export function applyAIResult(
   text: string
 ): SectionContent | null {
   if (sectionType === 'summary' || sectionType === 'text') {
-    return { text: normalizeRichTextValue(text) } as SummaryContent;
+    return { text: normalizeRichTextValue(getRichTextApplyValue(text)) } as
+      | SummaryContent
+      | TextContent;
   }
 
   try {
-    const parsed = parseJsonArray(text);
+    const parsed = parseSectionItems(sectionType, text);
 
     if (sectionType === 'header') {
       const item = parsed.find(isRecord);

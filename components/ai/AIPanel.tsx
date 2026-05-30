@@ -1,7 +1,11 @@
 'use client';
 
 import { useState, useCallback, useRef, useEffect } from 'react';
-import type { SectionType, SectionContent, ExperienceContent } from '@/lib/types';
+import type {
+  SectionType,
+  SectionContent,
+  ExperienceContent,
+} from '@/lib/types';
 import { SECTION_LABELS } from '@/lib/types';
 import { normalizeRichTextValue } from '@/lib/rich-text';
 import { useAIStore } from '@/store/ai';
@@ -25,7 +29,7 @@ interface Props {
   mode?: 'generate' | 'edit';
   sectionType: SectionType;
   currentContent: SectionContent;
-  onApply: (text: string) => void;
+  onApply: (text: string) => boolean;
   onClose: () => void;
   preloadedResult?: string;
 }
@@ -205,7 +209,9 @@ export function AIPanel({
         currentContent: JSON.stringify(currentContent),
       });
       if (text !== null) {
-        useAIJobsStore.getState().updateJob(jobId, { status: 'completed', result: text });
+        useAIJobsStore
+          .getState()
+          .updateJob(jobId, { status: 'completed', result: text });
         await addAiMessage(text, true);
       } else {
         useAIJobsStore.getState().updateJob(jobId, { status: 'error' });
@@ -276,7 +282,9 @@ export function AIPanel({
         userRequest: direction,
       });
       if (text !== null) {
-        useAIJobsStore.getState().updateJob(jobId, { status: 'completed', result: text });
+        useAIJobsStore
+          .getState()
+          .updateJob(jobId, { status: 'completed', result: text });
         await addAiMessage(text);
       } else {
         useAIJobsStore.getState().updateJob(jobId, { status: 'error' });
@@ -303,6 +311,24 @@ export function AIPanel({
       handleSend();
     }
   };
+
+  const handleApply = useCallback(() => {
+    if (!latestAiText) return;
+
+    const didApply = onApply(latestAiText);
+    if (!didApply) {
+      setError(
+        'AI 결과 형식을 적용할 수 없습니다. 다시 생성하거나 추가 요청으로 형식을 정리해주세요.'
+      );
+      return;
+    }
+
+    if (currentJobIdRef.current) {
+      useAIJobsStore.getState().removeJob(currentJobIdRef.current);
+      currentJobIdRef.current = null;
+    }
+    onClose();
+  }, [latestAiText, onApply, onClose]);
 
   const handleReset = () => {
     setMessages([]);
@@ -657,14 +683,7 @@ export function AIPanel({
               </button>
               <button
                 type="button"
-                onClick={() => {
-                  if (currentJobIdRef.current) {
-                    useAIJobsStore.getState().removeJob(currentJobIdRef.current);
-                    currentJobIdRef.current = null;
-                  }
-                  onApply(latestAiText);
-                  onClose();
-                }}
+                onClick={handleApply}
                 disabled={!latestAiText}
                 className="flex-1 rounded-lg bg-gray-900 py-2 text-sm font-medium text-white transition-colors hover:bg-gray-700 disabled:bg-gray-200"
               >
@@ -702,17 +721,13 @@ function tryParseExperienceContent(
   return null;
 }
 
-function ExperienceStructurePreview({
-  content,
-}: {
-  content: SectionContent;
-}) {
+function ExperienceStructurePreview({ content }: { content: SectionContent }) {
   const experience = tryParseExperienceContent(content);
   if (!experience || experience.items.length === 0) return null;
 
   return (
     <div className="shrink-0 rounded-lg border border-gray-200 bg-gray-50 p-3">
-      <p className="mb-2 text-xs font-semibold text-gray-500 uppercase tracking-wide">
+      <p className="mb-2 text-xs font-semibold tracking-wide text-gray-500 uppercase">
         현재 경력 구조
       </p>
       <div className="space-y-2">
@@ -744,7 +759,7 @@ function ExperienceStructurePreview({
                       </span>
                     )}
                     {project.tech && (
-                      <span className="text-gray-400 truncate">
+                      <span className="truncate text-gray-400">
                         ({project.tech})
                       </span>
                     )}
@@ -774,7 +789,7 @@ function RichTextPreview({ value }: { value: string }) {
 
   if (parsed !== null) {
     return (
-      <pre className="overflow-x-auto whitespace-pre-wrap wrap-break-word rounded-md border border-gray-200 bg-white p-3 font-mono text-xs leading-relaxed text-gray-700">
+      <pre className="overflow-x-auto rounded-md border border-gray-200 bg-white p-3 font-mono text-xs leading-relaxed wrap-break-word whitespace-pre-wrap text-gray-700">
         {JSON.stringify(parsed, null, 2)}
       </pre>
     );

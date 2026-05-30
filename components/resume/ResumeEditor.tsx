@@ -25,6 +25,7 @@ interface Props {
 export interface ResumeEditorRef {
   save: () => Promise<void>;
   markAllDirty: () => void;
+  markSectionDirty: (sectionId: string, content: SectionContent) => void;
 }
 
 const SAVE_DEBOUNCE_MS = 800;
@@ -287,27 +288,6 @@ export const ResumeEditor = forwardRef<ResumeEditorRef, Props>(
       }
     }, [onPendingChange, resumeId, saveOrder, setIsSaving, setSections]);
 
-    useImperativeHandle(
-      ref,
-      () => ({
-        save: flushPendingSaves,
-        markAllDirty: () => {
-          const currentSections = useResumeStore.getState().sections;
-          currentSections
-            .filter((section) => section.id)
-            .forEach((section) => {
-              pendingSaves.current.set(section.id, {
-                content: section.content,
-                layout: section.layout,
-              });
-            });
-          hasPendingOrder.current = true;
-          onPendingChange(true);
-        },
-      }),
-      [flushPendingSaves, onPendingChange]
-    );
-
     useEffect(() => {
       if (!autoSave) return;
 
@@ -357,6 +337,30 @@ export const ResumeEditor = forwardRef<ResumeEditorRef, Props>(
         dispatchSave(sectionId, { content });
       },
       [updateSectionContent, dispatchSave]
+    );
+
+    useImperativeHandle(
+      ref,
+      () => ({
+        save: flushPendingSaves,
+        markAllDirty: () => {
+          const currentSections = useResumeStore.getState().sections;
+          currentSections
+            .filter((section) => section.id)
+            .forEach((section) => {
+              pendingSaves.current.set(section.id, {
+                content: section.content,
+                layout: section.layout,
+              });
+            });
+          hasPendingOrder.current = true;
+          onPendingChange(true);
+        },
+        markSectionDirty: (sectionId, content) => {
+          dispatchSave(sectionId, { content });
+        },
+      }),
+      [dispatchSave, flushPendingSaves, onPendingChange]
     );
 
     const handleMoveUp = useCallback(

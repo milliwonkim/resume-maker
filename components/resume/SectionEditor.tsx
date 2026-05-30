@@ -215,7 +215,9 @@ export function SectionEditor({
           currentContent={section.content}
           onApply={(text) => {
             const content = applyAIResult(section.type, text);
-            if (content !== null) onContentChange(content);
+            if (content === null) return false;
+            onContentChange(content);
+            return true;
           }}
           onClose={() => setAiOpen(false)}
         />

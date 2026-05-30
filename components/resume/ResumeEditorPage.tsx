@@ -257,6 +257,22 @@ export function ResumeEditorPage({ resumeId }: Props) {
     openBrowserPrintExport();
   }, []);
 
+  const handleSelectedJobApply = useCallback(
+    (text: string) => {
+      if (!selectedJob) return false;
+
+      const content = applyAIResult(selectedJob.sectionType, text);
+      if (content === null) return false;
+
+      updateSectionContent(selectedJob.sectionId, content);
+      editorRef.current?.markSectionDirty(selectedJob.sectionId, content);
+      removeJob(selectedJob.id);
+      setSelectedJob(null);
+      return true;
+    },
+    [removeJob, selectedJob, updateSectionContent]
+  );
+
   if (loading) {
     return (
       <div className="flex h-screen items-center justify-center text-gray-400">
@@ -552,13 +568,7 @@ export function ResumeEditorPage({ resumeId }: Props) {
               sectionType={selectedJob.sectionType}
               currentContent={section.content}
               preloadedResult={selectedJob.result}
-              onApply={(text) => {
-                const content = applyAIResult(selectedJob.sectionType, text);
-                if (content !== null)
-                  updateSectionContent(selectedJob.sectionId, content);
-                removeJob(selectedJob.id);
-                setSelectedJob(null);
-              }}
+              onApply={handleSelectedJobApply}
               onClose={() => setSelectedJob(null)}
             />
           );
