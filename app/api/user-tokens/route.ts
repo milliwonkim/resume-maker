@@ -9,6 +9,7 @@ import {
   hasRequiredUserTokens,
 } from '@/lib/user-token-cookies';
 import { getGeminiErrorResult } from '@/lib/gemini-errors';
+import { ensureNotionDatabaseSchema } from '@/lib/notion-schema';
 import { getServerUserTokenStatus } from '@/lib/server-user-tokens';
 
 const COOKIE_OPTIONS = {
@@ -56,40 +57,7 @@ async function validateNotionDatabase(
   notionToken: string,
   notionDatabaseId: string
 ): Promise<void> {
-  const response = await fetch(
-    `https://api.notion.com/v1/databases/${notionDatabaseId}`,
-    {
-      headers: {
-        Authorization: `Bearer ${notionToken}`,
-        'Notion-Version': '2022-06-28',
-      },
-      cache: 'no-store',
-    }
-  );
-
-  if (!response.ok) {
-    throw new Error('Notion 토큰 또는 데이터베이스 권한을 확인해주세요.');
-  }
-
-  await fetch(`https://api.notion.com/v1/databases/${notionDatabaseId}`, {
-    method: 'PATCH',
-    headers: {
-      Authorization: `Bearer ${notionToken}`,
-      'Notion-Version': '2022-06-28',
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      properties: {
-        Kind: { select: {} },
-        EntityId: { rich_text: {} },
-        ResumeId: { rich_text: {} },
-        SectionType: { select: {} },
-        Layout: { rich_text: {} },
-        Order: { number: {} },
-        UpdatedAt: { date: {} },
-      },
-    }),
-  });
+  await ensureNotionDatabaseSchema(notionToken, notionDatabaseId);
 }
 
 async function validateGeminiApiKey(apiKey: string): Promise<void> {
@@ -146,9 +114,7 @@ async function validateCredentials(
   } catch (error) {
     return {
       error:
-        error instanceof Error
-          ? error.message
-          : '토큰 확인에 실패했습니다.',
+        error instanceof Error ? error.message : '토큰 확인에 실패했습니다.',
     };
   }
 }
@@ -172,7 +138,8 @@ async function validateBody(body: unknown): Promise<ValidationResult> {
 
   if (!notionToken || !notionDatabaseIdInput || !geminiApiKey) {
     return {
-      error: 'Notion 토큰, Notion 데이터베이스 ID, Gemini API 키가 모두 필요합니다.',
+      error:
+        'Notion 토큰, Notion 데이터베이스 ID, Gemini API 키가 모두 필요합니다.',
     };
   }
 
@@ -191,9 +158,7 @@ async function validateBody(body: unknown): Promise<ValidationResult> {
   } catch (error) {
     return {
       error:
-        error instanceof Error
-          ? error.message
-          : '토큰 확인에 실패했습니다.',
+        error instanceof Error ? error.message : '토큰 확인에 실패했습니다.',
     };
   }
 }
